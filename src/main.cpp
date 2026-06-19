@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include "TaraCore.h"
 #include "TaraOTA.h"
+#include "TaraConfig.h"
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
@@ -39,6 +40,7 @@ void setup() {
 
     registerRobot();
     otaMqttConnect();
+    configMqttConnect();
     setState(STATE_WAITING_CONFIG);
 
     Serial.println("Tara ready.");
@@ -51,6 +53,7 @@ void loop() {
     }
 
     otaMqttLoop();
+    configMqttLoop();
 
     // confused face rendered only when config is not yet received
     if (currentState == STATE_WAITING_CONFIG) {

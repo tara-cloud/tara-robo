@@ -2,6 +2,7 @@
 #include "TaraCore.h"
 #include <ArduinoJson.h>
 #include <HTTPUpdate.h>
+#include <HTTPClient.h>
 #include <WiFiClient.h>
 #include <PubSubClient.h>
 
@@ -77,6 +78,7 @@ void handleOTA(const String& json) {
 
     String version = doc["version"] | String("");
     String url     = doc["url"]     | String("");
+    String apiKey  = doc["apiKey"]  | String("");
 
     if (url.length() == 0) {
         Serial.println("[OTA] No URL in payload");
@@ -89,7 +91,12 @@ void handleOTA(const String& json) {
     tlog("Downloading...");
     publishOTAStatus("downloading", version);
 
-    WiFiClient client;
+    WiFiClient wifiCli;
+    HTTPClient http;
+    http.begin(wifiCli, url);
+    if (apiKey.length() > 0) {
+        http.addHeader("x-pocket-token", apiKey);
+    }
 
     httpUpdate.onProgress([&version](int recv, int total) {
         if (total <= 0) return;
@@ -102,7 +109,7 @@ void handleOTA(const String& json) {
         }
     });
 
-    t_httpUpdate_return ret = httpUpdate.update(client, url);
+    t_httpUpdate_return ret = httpUpdate.update(http);
 
     switch (ret) {
         case HTTP_UPDATE_FAILED: {
