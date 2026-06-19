@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <PubSubClient.h>
 #include "TaraCore.h"
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
@@ -8,14 +7,13 @@ String     robotId;
 String     wifiSSID;
 String     wifiPassword;
 String     serverUrl;
+String     projectId;
 String     mqttHost;
-uint16_t   mqttPort      = 1883;
-RobotState currentState  = STATE_BOOTING;
+uint16_t   mqttPort     = 1883;
+String     otaTopic     = "ota";
+String     configTopic  = "taraConfig";
+RobotState currentState = STATE_BOOTING;
 WiFiClient wifiClient;
-PubSubClient mqttClient(wifiClient);
-
-static unsigned long lastHeartbeat = 0;
-static unsigned long lastSensor    = 0;
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
@@ -39,11 +37,9 @@ void setup() {
     connectToWiFi();
 
     registerRobot();
-    connectMQTT();
+    fetchMqttConfig();
+    setState(STATE_WAITING_CONFIG);
 
-    loadLocalConfig();
-
-    setState(STATE_IDLE);
     Serial.println("Tara ready.");
 }
 
@@ -51,22 +47,12 @@ void setup() {
 void loop() {
     if (WiFi.status() != WL_CONNECTED) {
         connectToWiFi();
-        connectMQTT();
     }
 
-    loopMQTT(); // dispatches incoming messages to handlers
-
-    unsigned long now = millis();
-
-    if (now - lastHeartbeat > HEARTBEAT_INTERVAL) {
-        lastHeartbeat = now;
-        publishHeartbeat();
-    }
-
-    if (now - lastSensor > SENSOR_INTERVAL) {
-        lastSensor = now;
-        publishSensor();
-    }
+    // confused face rendered only when config is not yet received
+    if (currentState == STATE_WAITING_CONFIG) {
+        renderConfusedFace();
+    }   
 
     // Idle face rendered only when nothing else is happening
     if (currentState == STATE_IDLE) {

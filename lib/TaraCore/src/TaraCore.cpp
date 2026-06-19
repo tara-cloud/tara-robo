@@ -80,11 +80,10 @@ void discoverComponents(int sdaPin, int sclPin) {
 void loadWiFiConfig() {
     Preferences prefs;
     prefs.begin(PREF_WIFI, true);
-    wifiSSID     = prefs.getString("ssid",      "");
-    wifiPassword = prefs.getString("password",  "");
-    serverUrl    = prefs.getString("serverUrl", "");
-    mqttHost     = prefs.getString("mqttHost",  "");
-    mqttPort     = prefs.getUShort("mqttPort",  1883);
+    wifiSSID     = prefs.getString("ssid",        "");
+    wifiPassword = prefs.getString("password",    "");
+    serverUrl    = prefs.getString("serverUrl",   "");
+    projectId    = prefs.getString("projectId",   "");
     prefs.end();
 }
 
@@ -135,11 +134,10 @@ static const char PORTAL_HTML[] PROGMEM = R"(<!DOCTYPE html>
 <body>
   <h2>&#x1F916; Tara Setup</h2>
   <form method="POST" action="/save">
+    <label>Project ID<input name="projectId" placeholder="e.g. clx1a2b3c..." required></label>
     <label>WiFi SSID<input name="ssid" required></label>
     <label>WiFi Password<input name="password" type="password"></label>
     <label>Server URL<input name="serverUrl" placeholder="http://192.168.x.x:4000" required></label>
-    <label>MQTT Host<input name="mqttHost" placeholder="192.168.x.x" required></label>
-    <label>MQTT Port<input name="mqttPort" value="1883" type="number" required></label>
     <button type="submit">Save &amp; Reboot</button>
   </form>
 </body>
@@ -169,24 +167,22 @@ void startSetupHotspot() {
     server.on("/connecttest.txt",     HTTP_GET, [&]() { server.sendHeader("Location", "/"); server.send(302); });
 
     server.on("/save", HTTP_POST, [&]() {
-        String ssid      = server.arg("ssid");
-        String password  = server.arg("password");
-        String srvUrl    = server.arg("serverUrl");
-        String mqHost    = server.arg("mqttHost");
-        uint16_t mqPort  = (uint16_t)server.arg("mqttPort").toInt();
+        String projectId  = server.arg("projectId");
+        String ssid       = server.arg("ssid");
+        String password   = server.arg("password");
+        String srvUrl     = server.arg("serverUrl");
 
-        if (ssid.length() == 0 || srvUrl.length() == 0 || mqHost.length() == 0) {
+        if (projectId.length() == 0 || ssid.length() == 0 || srvUrl.length() == 0) {
             server.send(400, "text/plain", "Missing required fields");
             return;
         }
 
         Preferences prefs;
         prefs.begin(PREF_WIFI, false);
-        prefs.putString("ssid",      ssid);
-        prefs.putString("password",  password);
-        prefs.putString("serverUrl", srvUrl);
-        prefs.putString("mqttHost",  mqHost);
-        prefs.putUShort("mqttPort",  mqPort);
+        prefs.putString("projectId",   projectId);
+        prefs.putString("ssid",        ssid);
+        prefs.putString("password",    password);
+        prefs.putString("serverUrl",   srvUrl);
         prefs.end();
 
         Serial.println("[Portal] Credentials saved — rebooting");
@@ -231,6 +227,7 @@ void registerRobot() {
     doc["deviceType"]      = DEVICE_TYPE;
     doc["firmwareVersion"] = FW_VERSION;
     doc["ip"]              = WiFi.localIP().toString();
+    if (projectId.length() > 0) doc["projectId"] = projectId;
 
     JsonArray components = doc["components"].to<JsonArray>();
     for (int i = 0; i < discoveredComponentCount; i++) {
@@ -253,14 +250,58 @@ void registerRobot() {
     String body;
     serializeJson(doc, body);
     int code = http.POST(body);
-    http.end();
 
-    Serial.printf("Register: %d\n", code);
     if (code == 200 || code == 201) {
+        String resp = http.getString();
+        JsonDocument rdoc;
+        if (deserializeJson(rdoc, resp) == DeserializationError::Ok) {
+            String srvProjectId = rdoc["projectId"] | String("");
+            if (srvProjectId.length() > 0 && srvProjectId != projectId) {
+                projectId = srvProjectId;
+                Preferences prefs;
+                prefs.begin(PREF_WIFI, false);
+                prefs.putString("projectId", projectId);
+                prefs.end();
+                Serial.printf("[Register] projectId: %s\n", projectId.c_str());
+            }
+        }
         tlog("Registered: OK");
     } else {
         tlog("Register: fail " + String(code));
     }
+    http.end();
+}
+
+// ─── MQTT config fetch ────────────────────────────────────────────────────────
+
+void fetchMqttConfig() {
+    if (WiFi.status() != WL_CONNECTED || serverUrl.length() == 0) return;
+
+    tlog("Fetching MQTT cfg...");
+    HTTPClient http;
+    http.begin(serverUrl + "/device/mqtt-config/" + robotId);
+    int code = http.GET();
+
+    if (code == 200) {
+        String body = http.getString();
+        JsonDocument doc;
+        if (deserializeJson(doc, body) == DeserializationError::Ok) {
+            mqttHost    = doc["mqttHost"]    | mqttHost;
+            mqttPort    = doc["mqttPort"]    | mqttPort;
+            otaTopic    = doc["otaTopic"]    | otaTopic;
+            configTopic = doc["configTopic"] | configTopic;
+            Serial.printf("[Config] MQTT %s:%d ota=%s config=%s\n",
+                mqttHost.c_str(), mqttPort, otaTopic.c_str(), configTopic.c_str());
+            tlog("MQTT cfg: OK");
+        }
+    } else if (code == 404) {
+        tlog("No project assigned");
+        Serial.println("[Config] Device not assigned to a project — using defaults");
+    } else {
+        Serial.printf("[Config] mqtt-config fetch failed: %d\n", code);
+        tlog("MQTT cfg: fail " + String(code));
+    }
+    http.end();
 }
 
 // ─── MQTT ────────────────────────────────────────────────────────────────────
@@ -282,11 +323,11 @@ void connectMQTT() {
             Serial.println("MQTT connected");
             tlog("MQTT: connected");
 
-            mqttClient.subscribe(robotTopic("config").c_str(),  1);
-            mqttClient.subscribe(robotTopic("display").c_str(), 0);
-            mqttClient.subscribe(robotTopic("emotion").c_str(), 0);
-            mqttClient.subscribe(robotTopic("speech").c_str(),  0);
-            mqttClient.subscribe(robotTopic("ota").c_str(),     1);
+            mqttClient.subscribe(robotTopic("config").c_str(),    1);
+            mqttClient.subscribe(robotTopic("display").c_str(),   0);
+            mqttClient.subscribe(robotTopic("emotion").c_str(),   0);
+            mqttClient.subscribe(robotTopic("speech").c_str(),    0);
+            mqttClient.subscribe(robotTopic(configTopic).c_str(), 1);
         } else {
             Serial.printf("MQTT failed (%d), retrying...\n", mqttClient.state());
             tlog("MQTT: retry " + String(mqttClient.state()));
@@ -309,11 +350,10 @@ void mqttCallback(const char* topic, byte* payload, unsigned int length) {
 
     Serial.printf("MQTT [%s]: %s\n", t.c_str(), msg.c_str());
 
-    if      (t.endsWith("/config"))  applyConfig(msg);
-    else if (t.endsWith("/display")) handleDisplay(msg);
-    else if (t.endsWith("/emotion")) handleEmotion(msg);
-    else if (t.endsWith("/speech"))  handleSpeech(msg);
-    else if (t.endsWith("/ota"))     handleOTA(msg);
+    if      (t.endsWith("/config") || t.endsWith("/" + configTopic)) applyConfig(msg);
+    else if (t.endsWith("/display"))  handleDisplay(msg);
+    else if (t.endsWith("/emotion"))  handleEmotion(msg);
+    else if (t.endsWith("/speech"))   handleSpeech(msg);
 }
 
 void publishHeartbeat() {

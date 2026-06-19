@@ -1,0 +1,49 @@
+{
+  "configurations": [
+    {
+      "name": "ESP32 (PlatformIO)",
+      "compilerPath": "/Users/I757692/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-gcc",
+      "cStandard": "gnu17",
+      "cppStandard": "gnu++17",
+      "intelliSenseMode": "gcc-x64",
+      "compileCommands": "${workspaceFolder}/compile_commands.json",
+      "defines": [
+        "PLATFORMIO=60119",
+        "ARDUINO=10812",
+        "ARDUINO_ESP32_DEV",
+        "ARDUINO_ARCH_ESP32",
+        "ESP32",
+        "ESP_PLATFORM",
+        "F_CPU=240000000L",
+        "HAVE_CONFIG_H",
+        "IDF_VER=\"v4.4.7-dirty\"",
+        "WITH_POSIX",
+        "_GNU_SOURCE",
+        "_POSIX_READER_WRITER_LOCKS",
+        "DEVICE_NAME=\"Tara\"",
+        "DEVICE_TYPE=\"robot\"",
+        "FW_VERSION=\"1.4.0\"",
+        "PROV_WIFI_SSID=\"YourSSID\"",
+        "PROV_WIFI_PASS=\"YourPass\"",
+        "PROV_SERVER_URL=\"http://192.168.0.107:4000\"",
+        "PROV_MQTT_HOST=\"192.168.0.107\""
+      ],
+      "includePath": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/lib/TaraCore/src",
+        "${workspaceFolder}/.pio/libdeps/robot/ArduinoJson",
+        "${workspaceFolder}/.pio/libdeps/robot/PubSubClient/src",
+        "${workspaceFolder}/.pio/libdeps/robot/U8g2/src",
+        "${workspaceFolder}/.pio/libdeps/robot/Adafruit SSD1306",
+        "${workspaceFolder}/.pio/libdeps/robot/Adafruit GFX Library",
+        "${workspaceFolder}/.pio/libdeps/robot/Adafruit BusIO",
+        "/Users/I757692/.platformio/packages/framework-arduinoespressif32/cores/esp32",
+        "/Users/I757692/.platformio/packages/framework-arduinoespressif32/variants/esp32",
+        "/Users/I757692/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/**",
+        "/Users/I757692/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/dio_qspi/include",
+        "/Users/I757692/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include"
+      ]
+    }
+  ],
+  "version": 4
+}

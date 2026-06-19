@@ -3,12 +3,14 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include "TaraOTA.h"
 
 // ─── Robot states ─────────────────────────────────────────────────────────────
 enum RobotState {
     STATE_BOOTING,
     STATE_CONNECTING,
     STATE_REGISTERING,
+    STATE_WAITING_CONFIG,
     STATE_CONFIGURING,
     STATE_IDLE,
     STATE_LISTENING,
@@ -55,8 +57,11 @@ extern String     robotId;
 extern String     wifiSSID;
 extern String     wifiPassword;
 extern String     serverUrl;
+extern String     projectId;
 extern String     mqttHost;
 extern uint16_t   mqttPort;
+extern String     otaTopic;
+extern String     configTopic;
 extern RobotState currentState;
 extern WiFiClient wifiClient;
 extern PubSubClient mqttClient;
@@ -68,6 +73,7 @@ void startSetupHotspot();
 
 // ─── Registration (HTTP) ─────────────────────────────────────────────────────
 void registerRobot();
+void fetchMqttConfig();
 
 // ─── MQTT ────────────────────────────────────────────────────────────────────
 void connectMQTT();
@@ -90,6 +96,6 @@ void setupDeviceHardware();
 void handleDisplay(const String& json);
 void handleEmotion(const String& json);
 void handleSpeech(const String& json);
-void handleOTA(const String& json);
 void renderIdleFace();
+void renderConfusedFace();
 void setState(RobotState s);

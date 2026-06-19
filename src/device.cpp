@@ -7,8 +7,6 @@
 #include "TaraCore.h"
 #include <ArduinoJson.h>
 #include <U8g2lib.h>
-#include <HTTPUpdate.h>
-#include <WiFiClient.h>
 #include "U8g2Display.h"
 #include "TaraExpressions.h"
 
@@ -34,12 +32,13 @@ static RobotEmotionState emotion;
 
 // ─── Cached face JSON per state (loaded from server at boot via config) ────────
 // Keys match RobotState names; stored as compact JSON strings
-static String cachedFaces[10]; // indexed by RobotState enum
+static String cachedFaces[11]; // indexed by RobotState enum
 
 static const char* STATE_NAMES[] = {
-    "booting", "connecting", "registering", "configuring",
+    "booting", "connecting", "registering", "waiting_config", "configuring",
     "idle", "listening", "thinking", "speaking", "sleeping", "error"
 };
+static const int STATE_COUNT = sizeof(STATE_NAMES) / sizeof(STATE_NAMES[0]);
 
 // ─── JSON draw engine ─────────────────────────────────────────────────────────
 
@@ -71,19 +70,6 @@ static void renderCmds(const String& json) {
     u8g2.sendBuffer();
 }
 
-static void renderState(RobotState s) {
-    const String& json = cachedFaces[(int)s];
-    if (json.length() > 0) {
-        renderCmds(json);
-    } else {
-        // Minimal fallback — two dots + line (no hardcoded faces)
-        u8g2.clearBuffer();
-        u8g2.drawDisc(38, 26, 8);
-        u8g2.drawDisc(90, 26, 8);
-        u8g2.drawHLine(50, 46, 28);
-        u8g2.sendBuffer();
-    }
-}
 
 // ─── Boot log ─────────────────────────────────────────────────────────────────
 static const int LOG_Y_START = 20;
@@ -129,11 +115,37 @@ void setupDeviceHardware() {
 
 void setState(RobotState s) {
     currentState = s;
-    renderState(s);
 }
 
 void renderIdleFace() {
     taraFace.animateIdle();
+}
+
+void renderConfusedFace() {
+    u8g2.clearBuffer();
+
+    // Asymmetric brows — left raised, right furrowed
+    u8g2.drawHLine(22, 10, 16);               // left brow — raised flat
+    u8g2.drawHLine(22, 11, 16);
+    u8g2.drawLine(74, 13, 90, 9);             // right brow — angled down-to-up
+    u8g2.drawLine(74, 14, 90, 10);
+
+    // Round eyes — left open, right squinted
+    u8g2.drawCircle(30, 28, 9);               // left eye open
+    u8g2.drawDisc(30, 28, 4);
+    u8g2.drawDisc(82, 32, 6);                 // right eye squinted (smaller, lower)
+
+    // Wavy mouth — confused squiggle
+    u8g2.drawLine(44, 50, 52, 46);
+    u8g2.drawLine(52, 46, 60, 50);
+    u8g2.drawLine(60, 50, 68, 46);
+    u8g2.drawLine(68, 46, 76, 50);
+
+    // Question mark top-right corner
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(112, 14, "?");
+
+    u8g2.sendBuffer();
 }
 
 void applyRobotConfig(const JsonDocument& doc) {
@@ -146,7 +158,7 @@ void applyRobotConfig(const JsonDocument& doc) {
     // Server pushes: { "faces": { "idle": "{cmds:[...]}", "happy": "...", ... } }
     JsonObjectConst faces = doc["faces"].as<JsonObjectConst>();
     if (faces) {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < STATE_COUNT; i++) {
             const char* name = STATE_NAMES[i];
             if (faces[name].is<const char*>()) {
                 cachedFaces[i] = faces[name].as<String>();
@@ -172,14 +184,13 @@ void handleDisplay(const String& json) {
     Serial.printf("[Robot] Display: face=%s\n", faceName.c_str());
 
     // Find matching state index
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < STATE_COUNT; i++) {
         if (faceName == STATE_NAMES[i] && cachedFaces[i].length() > 0) {
             renderCmds(cachedFaces[i]);
             return;
         }
     }
     // Unknown face: fallback to STATE_IDLE
-    renderState(STATE_IDLE);
 }
 
 void handleEmotion(const String& json) {
@@ -210,58 +221,4 @@ void handleSpeech(const String& json) {
     setState(STATE_SPEAKING);
     delay(constrain((int)text.length() * 80, 500, 6000));
     setState(STATE_IDLE);
-}
-
-void handleOTA(const String& json) {
-    JsonDocument doc;
-    if (deserializeJson(doc, json) != DeserializationError::Ok) return;
-
-    String version = doc["version"] | String("");
-    String url     = doc["url"]     | String("");
-
-    if (url.length() == 0) {
-        Serial.println("[OTA] No URL in payload");
-        return;
-    }
-
-    Serial.printf("[OTA] Starting update v%s from %s\n", version.c_str(), url.c_str());
-    tlog("OTA: v" + version);
-    tlog("Downloading...");
-
-    WiFiClient client;
-
-    // Progress callback — show % on OLED
-    httpUpdate.onProgress([](int recv, int total) {
-        if (total > 0) {
-            int pct = (recv * 100) / total;
-            static int lastPct = -1;
-            if (pct != lastPct && pct % 10 == 0) {
-                lastPct = pct;
-                // tlog is not accessible here directly, update display inline
-                Serial.printf("[OTA] %d%%\n", pct);
-            }
-        }
-    });
-
-    t_httpUpdate_return ret = httpUpdate.update(client, url);
-
-    switch (ret) {
-        case HTTP_UPDATE_FAILED:
-            Serial.printf("[OTA] Failed: %s\n", httpUpdate.getLastErrorString().c_str());
-            tlog("OTA Failed!");
-            setState(STATE_ERROR);
-            break;
-
-        case HTTP_UPDATE_NO_UPDATES:
-            Serial.println("[OTA] No update needed");
-            tlog("OTA: up to date");
-            setState(STATE_IDLE);
-            break;
-
-        case HTTP_UPDATE_OK:
-            // Device reboots automatically after this
-            Serial.println("[OTA] Success — rebooting");
-            tlog("OTA OK! Rebooting");
-            break;
-    }
 }
