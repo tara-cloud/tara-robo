@@ -13,34 +13,32 @@ static PubSubClient _otaMqtt(_otaWifi);
 
 static void _otaCallback(const char* topic, byte* payload, unsigned int length) {
     String msg = String((char*)payload, length);
-    Serial.printf("[OTA MQTT] %s: %s\n", topic, msg.c_str());
+    Serial.printf("[OTA MQTT] topic=%s msg=%s\n", topic, msg.c_str());
     handleOTA(msg);
 }
 
 void otaMqttConnect() {
     if (mqttHost.length() == 0) {
-        Serial.println("[OTA MQTT] no mqttHost — skipping");
+        TLOG(LOG_WARN, "OTA MQTT: no mqttHost — skipping");
         return;
     }
 
-    // Topic: projectId.deviceName.ota  (e.g. "tara01.Tara.ota")
-    String topic = projectId + "." + String(DEVICE_NAME) + ".ota";
+    String topic    = projectId + "." + String(DEVICE_NAME) + ".ota";
+    String clientId = robotId + "-ota";
 
     _otaMqtt.setServer(mqttHost.c_str(), mqttPort);
     _otaMqtt.setCallback(_otaCallback);
 
-    String clientId = robotId + "-ota";
-    Serial.printf("[OTA MQTT] connecting to %s:%d  topic: %s\n",
-                  mqttHost.c_str(), mqttPort, topic.c_str());
+    TLOG(LOG_INFO, "OTA MQTT connecting to %s:%d topic=%s", mqttHost.c_str(), mqttPort, topic.c_str());
 
     int attempts = 0;
     while (!_otaMqtt.connected() && attempts++ < 5) {
         if (_otaMqtt.connect(clientId.c_str())) {
             _otaMqtt.subscribe(topic.c_str(), 1);
-            Serial.printf("[OTA MQTT] connected, subscribed to %s\n", topic.c_str());
+            Serial.printf("[OTA MQTT] connected — subscribed to: %s\n", topic.c_str());
             tlog("OTA MQTT: OK");
         } else {
-            Serial.printf("[OTA MQTT] failed (%d), retrying...\n", _otaMqtt.state());
+            TLOG(LOG_WARN, "OTA MQTT failed (%d), retrying", _otaMqtt.state());
             delay(2000);
         }
     }
@@ -48,7 +46,7 @@ void otaMqttConnect() {
 
 void otaMqttLoop() {
     if (!_otaMqtt.connected()) {
-        Serial.println("[OTA MQTT] reconnecting...");
+        TLOG(LOG_WARN, "OTA MQTT reconnecting");
         otaMqttConnect();
     }
     _otaMqtt.loop();
@@ -67,7 +65,7 @@ void publishOTAStatus(const String& state, const String& version,
     String msg;
     serializeJson(doc, msg);
     _otaMqtt.publish(robotTopic("ota_status").c_str(), msg.c_str(), false);
-    Serial.printf("[OTA] status → %s\n", msg.c_str());
+    TLOG(LOG_INFO, "OTA status: %s", msg.c_str());
 }
 
 // ─── Inbound handler ─────────────────────────────────────────────────────────
@@ -81,12 +79,12 @@ void handleOTA(const String& json) {
     String apiKey  = doc["apiKey"]  | String("");
 
     if (url.length() == 0) {
-        Serial.println("[OTA] No URL in payload");
+        TLOG(LOG_ERROR, "OTA: no URL in payload");
         publishOTAStatus("failed", version, -1, "no url");
         return;
     }
 
-    Serial.printf("[OTA] Starting update v%s from %s\n", version.c_str(), url.c_str());
+    TLOG(LOG_INFO, "OTA starting v%s from %s", version.c_str(), url.c_str());
     tlog("OTA: v" + version);
     tlog("Downloading...");
     publishOTAStatus("downloading", version);
@@ -104,7 +102,7 @@ void handleOTA(const String& json) {
         static int lastPct = -1;
         if (pct != lastPct && pct % 10 == 0) {
             lastPct = pct;
-            Serial.printf("[OTA] %d%%\n", pct);
+            TLOG(LOG_DEBUG, "OTA progress: %d%%", pct);
             publishOTAStatus("progress", version, pct);
         }
     });
@@ -114,24 +112,23 @@ void handleOTA(const String& json) {
     switch (ret) {
         case HTTP_UPDATE_FAILED: {
             String err = httpUpdate.getLastErrorString();
-            Serial.printf("[OTA] Failed: %s\n", err.c_str());
+            TLOG(LOG_ERROR, "OTA failed: %s", err.c_str());
             tlog("OTA Failed!");
             publishOTAStatus("failed", version, -1, err);
             setState(STATE_ERROR);
             break;
         }
         case HTTP_UPDATE_NO_UPDATES:
-            Serial.println("[OTA] No update needed");
+            TLOG(LOG_INFO, "OTA: no update needed");
             tlog("OTA: up to date");
             publishOTAStatus("ok", version, 100);
             setState(STATE_IDLE);
             break;
 
         case HTTP_UPDATE_OK:
-            Serial.println("[OTA] Success — rebooting");
+            TLOG(LOG_INFO, "OTA success — rebooting");
             tlog("OTA OK! Rebooting");
             publishOTAStatus("ok", version, 100);
-            // device reboots automatically
             break;
     }
 }

@@ -35,13 +35,13 @@ void discoverComponents(int sdaPin, int sclPin) {
 
     Wire.begin(sdaPin, sclPin);
     tlog("Scanning I2C...");
-    Serial.printf("[Discovery] I2C scan SDA=%d SCL=%d\n", sdaPin, sclPin);
+    TLOG(LOG_INFO, "I2C scan SDA=%d SCL=%d", sdaPin, sclPin);
 
     for (uint8_t addr = 1; addr < 127 && discoveredComponentCount < MAX_COMPONENTS; addr++) {
         Wire.beginTransmission(addr);
         if (Wire.endTransmission() != 0) continue;
 
-        Serial.printf("[Discovery] Found 0x%02X\n", addr);
+        TLOG(LOG_DEBUG, "I2C found 0x%02X", addr);
 
         DiscoveredComponent& c = discoveredComponents[discoveredComponentCount++];
         c.address  = addr;
@@ -68,11 +68,27 @@ void discoverComponents(int sdaPin, int sclPin) {
         }
 
         tlog(c.name + "@0x" + String(addr, HEX));
-        Serial.printf("[Discovery] → %s (%s)\n", c.name.c_str(), c.type.c_str());
+        TLOG(LOG_INFO, "Component: %s (%s)", c.name.c_str(), c.type.c_str());
     }
 
     Wire.end();
-    Serial.printf("[Discovery] Done — %d component(s)\n", discoveredComponentCount);
+    TLOG(LOG_INFO, "I2C scan done — %d component(s)", discoveredComponentCount);
+}
+
+void addComponent(const String& name, const String& type, const String& protocol,
+                  std::initializer_list<DiscoveredPin> pins) {
+    if (discoveredComponentCount >= MAX_COMPONENTS) return;
+    DiscoveredComponent& c = discoveredComponents[discoveredComponentCount++];
+    c.name     = name;
+    c.type     = type;
+    c.protocol = protocol;
+    c.address  = 0;
+    c.pinCount = 0;
+    for (const auto& p : pins) {
+        if (c.pinCount >= 4) break;
+        c.pins[c.pinCount++] = p;
+    }
+    TLOG(LOG_INFO, "Component added: %s (%s)", name.c_str(), type.c_str());
 }
 
 // ─── WiFi ────────────────────────────────────────────────────────────────────
@@ -103,22 +119,21 @@ void connectToWiFi() {
     }
 
     tlog("WiFi: connecting...");
-    Serial.printf("WiFi connecting to %s", wifiSSID.c_str());
+    TLOG(LOG_INFO, "WiFi connecting to %s", wifiSSID.c_str());
     WiFi.begin(wifiSSID.c_str(), wifiPassword.c_str());
 
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 20) {
         delay(500);
-        Serial.print(".");
         attempts++;
     }
 
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("\nWiFi failed — starting hotspot");
+        TLOG(LOG_WARN, "WiFi failed — starting hotspot");
         tlog("WiFi: failed");
         startSetupHotspot();
     } else {
-        Serial.printf("\nConnected: %s\n", WiFi.localIP().toString().c_str());
+        TLOG(LOG_INFO, "WiFi connected: %s", WiFi.localIP().toString().c_str());
         tlog("WiFi: " + WiFi.localIP().toString());
     }
 }
@@ -164,7 +179,7 @@ void startSetupHotspot() {
     String apName = "Tara-" + robotId.substring(6); // last 6 chars of MAC
     WiFi.softAP(apName.c_str(), AP_PASSWORD);
     String apIp = WiFi.softAPIP().toString();
-    Serial.printf("AP: %s  IP: %s  pass: %s\n", apName.c_str(), apIp.c_str(), AP_PASSWORD);
+    TLOG(LOG_INFO, "AP: %s  IP: %s", apName.c_str(), apIp.c_str());
     tlog("AP: " + apName);
     tlog("IP: " + apIp);
 
@@ -208,7 +223,7 @@ void startSetupHotspot() {
         prefs.putUShort("mqttPort",    mqPort);
         prefs.end();
 
-        Serial.println("[Portal] Credentials saved — rebooting");
+        TLOG(LOG_INFO, "Portal: credentials saved — rebooting");
         tlog("Saved! Rebooting...");
         server.send(200, "text/html",
             "<html><body style='font-family:sans-serif;text-align:center;padding:40px'>"
@@ -225,7 +240,7 @@ void startSetupHotspot() {
     });
 
     server.begin();
-    Serial.println("[Portal] Serving captive portal");
+    TLOG(LOG_INFO, "Portal: serving captive portal");
 
     while (true) {
         dns.processNextRequest();
@@ -238,11 +253,11 @@ void startSetupHotspot() {
 void registerRobot() {
     setState(STATE_REGISTERING);
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("[Register] No WiFi — skipping");
+        TLOG(LOG_WARN, "Register: no WiFi — skipping");
         return;
     }
     if (serverUrl.length() == 0) {
-        Serial.println("[Register] No serverUrl — skipping");
+        TLOG(LOG_WARN, "Register: no serverUrl — skipping");
         tlog("No server URL!");
         return;
     }
@@ -280,8 +295,7 @@ void registerRobot() {
 
     String body;
     serializeJson(doc, body);
-    Serial.printf("[Register] POST %s/device/register\n", serverUrl.c_str());
-    Serial.printf("[Register] body: %s\n", body.c_str());
+    TLOG(LOG_INFO, "Register: POST %s/device/register", serverUrl.c_str());
     http.setTimeout(10000);
     int code = http.POST(body);
 
@@ -296,13 +310,13 @@ void registerRobot() {
                 prefs.begin(PREF_WIFI, false);
                 prefs.putString("projectId", projectId);
                 prefs.end();
-                Serial.printf("[Register] projectId: %s\n", projectId.c_str());
+                TLOG(LOG_INFO, "Register: projectId updated: %s", projectId.c_str());
             }
         }
         tlog("Registered: OK");
     } else {
         String errBody = http.getString();
-        Serial.printf("[Register] failed: code=%d body=%s\n", code, errBody.c_str());
+        TLOG(LOG_ERROR, "Register failed: code=%d body=%s", code, errBody.c_str());
         tlog("Register: fail " + String(code));
     }
     http.end();
@@ -339,18 +353,18 @@ void fetchMqttConfig() {
                 if (colonIdx > 0) end = min(end, colonIdx);
                 if (slashIdx > 0) end = min(end, slashIdx);
                 mqttHost = s.substring(0, end);
-                Serial.printf("[Config] mqttHost derived from serverUrl: %s\n", mqttHost.c_str());
+                TLOG(LOG_INFO, "mqttHost derived from serverUrl: %s", mqttHost.c_str());
             }
 
-            Serial.printf("[Config] MQTT %s:%d ota=%s config=%s\n",
+            TLOG(LOG_INFO, "MQTT config: %s:%d ota=%s config=%s",
                 mqttHost.c_str(), mqttPort, otaTopic.c_str(), configTopic.c_str());
             tlog("MQTT cfg: OK");
         }
     } else if (code == 404) {
         tlog("No project assigned");
-        Serial.println("[Config] Device not assigned to a project — using defaults");
+        TLOG(LOG_WARN, "mqtt-config: device not assigned to a project");
     } else {
-        Serial.printf("[Config] mqtt-config fetch failed: %d\n", code);
+        TLOG(LOG_ERROR, "mqtt-config fetch failed: %d", code);
         tlog("MQTT cfg: fail " + String(code));
     }
     http.end();
@@ -368,11 +382,11 @@ void connectMQTT() {
     mqttClient.setCallback(mqttCallback);
 
     tlog("MQTT: connecting...");
-    Serial.printf("MQTT connecting to %s:%d\n", mqttHost.c_str(), mqttPort);
+    TLOG(LOG_INFO, "MQTT connecting to %s:%d", mqttHost.c_str(), mqttPort);
 
     while (!mqttClient.connected()) {
         if (mqttClient.connect(robotId.c_str())) {
-            Serial.println("MQTT connected");
+            TLOG(LOG_INFO, "MQTT connected");
             tlog("MQTT: connected");
 
             mqttClient.subscribe(robotTopic("config").c_str(),    1);
@@ -381,7 +395,7 @@ void connectMQTT() {
             mqttClient.subscribe(robotTopic("speech").c_str(),    0);
             mqttClient.subscribe(robotTopic(configTopic).c_str(), 1);
         } else {
-            Serial.printf("MQTT failed (%d), retrying...\n", mqttClient.state());
+            TLOG(LOG_WARN, "MQTT connect failed (%d), retrying", mqttClient.state());
             tlog("MQTT: retry " + String(mqttClient.state()));
             delay(3000);
         }
@@ -399,8 +413,7 @@ void loopMQTT() {
 void mqttCallback(const char* topic, byte* payload, unsigned int length) {
     String t   = String(topic);
     String msg = String((char*)payload, length);
-
-    Serial.printf("MQTT [%s]: %s\n", t.c_str(), msg.c_str());
+    TLOG(LOG_DEBUG, "MQTT [%s]: %s", t.c_str(), msg.c_str());
 
     if      (t.endsWith("/config") || t.endsWith("/" + configTopic)) applyConfig(msg);
     else if (t.endsWith("/display"))  handleDisplay(msg);
@@ -448,8 +461,7 @@ void applyConfig(const String& json) {
 
     JsonDocument doc;
     if (deserializeJson(doc, json) != DeserializationError::Ok) return;
-
-    Serial.printf("Config applied: v%d\n", (int)doc["version"]);
+    TLOG(LOG_INFO, "Config applied: v%d", (int)doc["version"]);
     extern void applyRobotConfig(const JsonDocument&);
     applyRobotConfig(doc);
 }

@@ -95,7 +95,7 @@ static void redrawBootScreen() {
 }
 
 void tlog(const String& msg) {
-    Serial.printf("[tlog] %s\n", msg.c_str());
+    TLOG(LOG_INFO, "%s", msg.c_str());
     logLines[logCount % LOG_MAX] = msg;
     logCount++;
     redrawBootScreen();
@@ -107,10 +107,15 @@ void setupDeviceHardware() {
     // Scan I2C before u8g2 takes the bus (Wire.end() is called inside)
     discoverComponents(I2C_SDA, I2C_SCL);
 
+    // Register GPIO components that aren't on the I2C bus
+    addComponent("TouchSensor", "input", "GPIO", {
+        { "GPIO18", "TOUCH", "input" }
+    });
+
     u8g2.begin();
     u8g2.setContrast((uint8_t)displayBrightness);
     redrawBootScreen();
-    Serial.println("[Robot] Hardware ready — SH1106 128x64");
+    TLOG(LOG_INFO, "Hardware ready — SH1106 128x64");
 }
 
 void setState(RobotState s) {
@@ -164,7 +169,7 @@ void applyRobotConfig(const JsonDocument& doc) {
                 cachedFaces[i] = faces[name].as<String>();
             }
         }
-        Serial.println("[Robot] Face cache updated from config");
+        TLOG(LOG_INFO, "Face cache updated from config");
     }
 }
 
@@ -174,14 +179,14 @@ void handleDisplay(const String& json) {
 
     // If "cmds" array present: render directly
     if (doc["cmds"].is<JsonArray>()) {
-        Serial.println("[Robot] Display: inline cmds");
+        TLOG(LOG_DEBUG, "Display: inline cmds");
         renderCmds(json);
         return;
     }
 
     // If "face" name present: look up in cache and render
     String faceName = doc["face"] | String("idle");
-    Serial.printf("[Robot] Display: face=%s\n", faceName.c_str());
+    TLOG(LOG_DEBUG, "Display: face=%s", faceName.c_str());
 
     // Find matching state index
     for (int i = 0; i < STATE_COUNT; i++) {
@@ -201,7 +206,7 @@ void handleEmotion(const String& json) {
     emotion.energy = doc["energy"] | emotion.energy;
     emotion.since  = millis();
 
-    Serial.printf("[Robot] Emotion: %s energy=%d\n", emotion.state.c_str(), emotion.energy);
+    TLOG(LOG_INFO, "Emotion: %s energy=%d", emotion.state.c_str(), emotion.energy);
 
     // Map emotion to robot state and render
     RobotState s = STATE_IDLE;
@@ -217,7 +222,7 @@ void handleSpeech(const String& json) {
     if (deserializeJson(doc, json) != DeserializationError::Ok) return;
     String text = doc["text"] | String("");
 
-    Serial.printf("[Robot] Speech: %s\n", text.c_str());
+    TLOG(LOG_INFO, "Speech: %s", text.c_str());
     setState(STATE_SPEAKING);
     delay(constrain((int)text.length() * 80, 500, 6000));
     setState(STATE_IDLE);

@@ -16,6 +16,7 @@ String     otaTopic     = "ota";
 String     configTopic  = "taraConfig";
 RobotState currentState = STATE_BOOTING;
 WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
@@ -41,9 +42,13 @@ void setup() {
     registerRobot();
     otaMqttConnect();
     configMqttConnect();
-    setState(STATE_WAITING_CONFIG);
 
-    Serial.println("Tara ready.");
+    // Init logging service — publishes to projectId.log via OTA MQTT client
+    // Use the same mqttClient that's connected to the broker
+    taraLogInit(&mqttClient, projectId, String(DEVICE_NAME));
+    TLOG(LOG_INFO, "Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
+
+    setState(STATE_WAITING_CONFIG);
 }
 
 // ─── Loop ────────────────────────────────────────────────────────────────────
@@ -54,13 +59,12 @@ void loop() {
 
     otaMqttLoop();
     configMqttLoop();
+    taraLogFlush();
 
-    // confused face rendered only when config is not yet received
     if (currentState == STATE_WAITING_CONFIG) {
         renderConfusedFace();
     }
 
-    // Idle face rendered only when nothing else is happening
     if (currentState == STATE_IDLE) {
         renderIdleFace();
     }
