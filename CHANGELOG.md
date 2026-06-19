@@ -1,5 +1,23 @@
 # Changelog — tara-robo
 
+## [1.5.0] — 2026-06-19
+
+### Added
+- OTA MQTT client starts after `registerRobot()` — subscribes to
+  `{projectId}.{deviceName}.ota` (QoS 1), loops in `main.cpp`
+- `otaMqttLoop()` called every iteration to keep connection alive
+- Captive portal redesigned: Host / Service Port / MQTT Port fields
+  replace raw Server URL — `serverUrl` and `mqttHost` auto-constructed
+- `loadWiFiConfig()` reconstructs `serverUrl`+`mqttHost` from stored host/port
+- `STATE_WAITING_CONFIG` + `renderConfusedFace()` post-registration state
+- Factory reset: `WiFi.disconnect(true, true)` erases SDK credentials
+  before full NVS erase — fixes loop where WiFi reconnected after reset
+
+### Changed
+- `FW_VERSION` bumped to 1.5.0
+
+---
+
 ## [1.4.0] — 2026-06-19
 
 ### Added

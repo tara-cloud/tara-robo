@@ -17,19 +17,27 @@ static void _otaCallback(const char* topic, byte* payload, unsigned int length) 
 }
 
 void otaMqttConnect() {
-    if (mqttHost.length() == 0) return;
+    if (mqttHost.length() == 0) {
+        Serial.println("[OTA MQTT] no mqttHost — skipping");
+        return;
+    }
+
+    // Topic: projectId.deviceName.ota  (e.g. "tara01.Tara.ota")
+    String topic = projectId + "." + String(DEVICE_NAME) + ".ota";
 
     _otaMqtt.setServer(mqttHost.c_str(), mqttPort);
     _otaMqtt.setCallback(_otaCallback);
 
     String clientId = robotId + "-ota";
-    Serial.printf("[OTA MQTT] connecting to %s:%d\n", mqttHost.c_str(), mqttPort);
+    Serial.printf("[OTA MQTT] connecting to %s:%d  topic: %s\n",
+                  mqttHost.c_str(), mqttPort, topic.c_str());
 
     int attempts = 0;
     while (!_otaMqtt.connected() && attempts++ < 5) {
         if (_otaMqtt.connect(clientId.c_str())) {
-            _otaMqtt.subscribe(robotTopic(otaTopic).c_str(), 1);
-            Serial.printf("[OTA MQTT] connected, subscribed to /%s\n", otaTopic.c_str());
+            _otaMqtt.subscribe(topic.c_str(), 1);
+            Serial.printf("[OTA MQTT] connected, subscribed to %s\n", topic.c_str());
+            tlog("OTA MQTT: OK");
         } else {
             Serial.printf("[OTA MQTT] failed (%d), retrying...\n", _otaMqtt.state());
             delay(2000);

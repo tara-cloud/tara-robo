@@ -80,11 +80,18 @@ void discoverComponents(int sdaPin, int sclPin) {
 void loadWiFiConfig() {
     Preferences prefs;
     prefs.begin(PREF_WIFI, true);
-    wifiSSID     = prefs.getString("ssid",        "");
-    wifiPassword = prefs.getString("password",    "");
-    serverUrl    = prefs.getString("serverUrl",   "");
-    projectId    = prefs.getString("projectId",   "");
+    wifiSSID     = prefs.getString("ssid",      "");
+    wifiPassword = prefs.getString("password",  "");
+    projectId    = prefs.getString("projectId", "");
+    String host  = prefs.getString("host",      "");
+    uint16_t svcPort = prefs.getUShort("servicePort", 4000);
+    mqttPort         = prefs.getUShort("mqttPort",    1883);
     prefs.end();
+
+    if (host.length() > 0) {
+        serverUrl = "http://" + host + ":" + String(svcPort);
+        mqttHost  = host;
+    }
 }
 
 void connectToWiFi() {
@@ -129,15 +136,25 @@ static const char PORTAL_HTML[] PROGMEM = R"(<!DOCTYPE html>
     input { width: 100%; box-sizing: border-box; padding: 8px; margin-top: 4px; font-size: 15px; }
     button { width: 100%; margin-top: 20px; padding: 12px; font-size: 16px;
              background: #333; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    hr { margin: 18px 0; border: none; border-top: 1px solid #ccc; }
+    .section { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-top: 16px; }
   </style>
 </head>
 <body>
   <h2>&#x1F916; Tara Setup</h2>
   <form method="POST" action="/save">
-    <label>Project ID<input name="projectId" placeholder="e.g. clx1a2b3c..." required></label>
-    <label>WiFi SSID<input name="ssid" required></label>
-    <label>WiFi Password<input name="password" type="password"></label>
-    <label>Server URL<input name="serverUrl" placeholder="http://192.168.x.x:4000" required></label>
+    <p class="section">Project</p>
+    <label>Project ID<input name="projectId" placeholder="e.g. tara-home" required></label>
+
+    <p class="section">WiFi</p>
+    <label>SSID<input name="ssid" required></label>
+    <label>Password<input name="password" type="password"></label>
+
+    <p class="section">Server</p>
+    <label>Host<input name="host" placeholder="192.168.0.107" required></label>
+    <label>Service Port<input name="servicePort" type="number" value="4000" required></label>
+    <label>MQTT Port<input name="mqttPort" type="number" value="1883" required></label>
+
     <button type="submit">Save &amp; Reboot</button>
   </form>
 </body>
@@ -167,22 +184,28 @@ void startSetupHotspot() {
     server.on("/connecttest.txt",     HTTP_GET, [&]() { server.sendHeader("Location", "/"); server.send(302); });
 
     server.on("/save", HTTP_POST, [&]() {
-        String projectId  = server.arg("projectId");
-        String ssid       = server.arg("ssid");
-        String password   = server.arg("password");
-        String srvUrl     = server.arg("serverUrl");
+        String pid         = server.arg("projectId");
+        String ssid        = server.arg("ssid");
+        String password    = server.arg("password");
+        String host        = server.arg("host");
+        uint16_t svcPort   = (uint16_t)server.arg("servicePort").toInt();
+        uint16_t mqPort    = (uint16_t)server.arg("mqttPort").toInt();
 
-        if (projectId.length() == 0 || ssid.length() == 0 || srvUrl.length() == 0) {
+        if (pid.length() == 0 || ssid.length() == 0 || host.length() == 0) {
             server.send(400, "text/plain", "Missing required fields");
             return;
         }
+        if (svcPort == 0) svcPort = 4000;
+        if (mqPort  == 0) mqPort  = 1883;
 
         Preferences prefs;
         prefs.begin(PREF_WIFI, false);
-        prefs.putString("projectId",   projectId);
+        prefs.putString("projectId",   pid);
         prefs.putString("ssid",        ssid);
         prefs.putString("password",    password);
-        prefs.putString("serverUrl",   srvUrl);
+        prefs.putString("host",        host);
+        prefs.putUShort("servicePort", svcPort);
+        prefs.putUShort("mqttPort",    mqPort);
         prefs.end();
 
         Serial.println("[Portal] Credentials saved — rebooting");
@@ -214,7 +237,15 @@ void startSetupHotspot() {
 
 void registerRobot() {
     setState(STATE_REGISTERING);
-    if (WiFi.status() != WL_CONNECTED) return;
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[Register] No WiFi — skipping");
+        return;
+    }
+    if (serverUrl.length() == 0) {
+        Serial.println("[Register] No serverUrl — skipping");
+        tlog("No server URL!");
+        return;
+    }
 
     tlog("Registering...");
     HTTPClient http;
@@ -249,6 +280,9 @@ void registerRobot() {
 
     String body;
     serializeJson(doc, body);
+    Serial.printf("[Register] POST %s/device/register\n", serverUrl.c_str());
+    Serial.printf("[Register] body: %s\n", body.c_str());
+    http.setTimeout(10000);
     int code = http.POST(body);
 
     if (code == 200 || code == 201) {
@@ -267,6 +301,8 @@ void registerRobot() {
         }
         tlog("Registered: OK");
     } else {
+        String errBody = http.getString();
+        Serial.printf("[Register] failed: code=%d body=%s\n", code, errBody.c_str());
         tlog("Register: fail " + String(code));
     }
     http.end();
@@ -290,6 +326,22 @@ void fetchMqttConfig() {
             mqttPort    = doc["mqttPort"]    | mqttPort;
             otaTopic    = doc["otaTopic"]    | otaTopic;
             configTopic = doc["configTopic"] | configTopic;
+
+            // If server hasn't configured an MQTT host, extract it from serverUrl
+            // e.g. "http://192.168.0.107:30400" → "192.168.0.107"
+            if (mqttHost.length() == 0 && serverUrl.length() > 0) {
+                String s = serverUrl;
+                if (s.startsWith("http://"))  s = s.substring(7);
+                if (s.startsWith("https://")) s = s.substring(8);
+                int colonIdx = s.indexOf(':');
+                int slashIdx = s.indexOf('/');
+                int end = s.length();
+                if (colonIdx > 0) end = min(end, colonIdx);
+                if (slashIdx > 0) end = min(end, slashIdx);
+                mqttHost = s.substring(0, end);
+                Serial.printf("[Config] mqttHost derived from serverUrl: %s\n", mqttHost.c_str());
+            }
+
             Serial.printf("[Config] MQTT %s:%d ota=%s config=%s\n",
                 mqttHost.c_str(), mqttPort, otaTopic.c_str(), configTopic.c_str());
             tlog("MQTT cfg: OK");
