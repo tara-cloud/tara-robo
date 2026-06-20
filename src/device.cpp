@@ -8,6 +8,7 @@
 #include <ArduinoJson.h>
 #include <U8g2lib.h>
 #include "U8g2Display.h"
+#include <config4h.h>
 #include "TaraExpressions.h"
 
 // ─── Display + TaraExpressions ───────────────────────────────────────────────
@@ -153,23 +154,23 @@ void renderConfusedFace() {
     u8g2.sendBuffer();
 }
 
-void applyRobotConfig(const JsonDocument& doc) {
-    displayBrightness = doc["displayBrightness"] | displayBrightness;
-    volume            = doc["volume"]            | volume;
-    idleTimeout       = doc["idleTimeout"]       | idleTimeout;
+void applyRobotConfig() {
+    displayBrightness = config4h_get("displayBrightness").asInt(displayBrightness);
+    volume            = config4h_get("volume").asInt(volume);
+    idleTimeout       = config4h_get("idleTimeout").asInt(idleTimeout);
     u8g2.setContrast((uint8_t)displayBrightness);
 
-    // Load cached face JSON for each state from config
+    // Load cached face JSON strings for each state
     // Server pushes: { "faces": { "idle": "{cmds:[...]}", "happy": "...", ... } }
-    JsonObjectConst faces = doc["faces"].as<JsonObjectConst>();
-    if (faces) {
+    JsonVariant faces = config4h_get("faces").raw();
+    if (faces.is<JsonObject>()) {
         for (int i = 0; i < STATE_COUNT; i++) {
             const char* name = STATE_NAMES[i];
             if (faces[name].is<const char*>()) {
                 cachedFaces[i] = faces[name].as<String>();
             }
         }
-        TLOG(LOG_INFO, "Face cache updated from config");
+        LINFO("applyRobotConfig: face cache updated");
     }
 }
 

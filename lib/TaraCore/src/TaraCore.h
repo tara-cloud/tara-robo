@@ -25,7 +25,6 @@ static const unsigned long HEARTBEAT_INTERVAL = 30000; // 30 s
 static const unsigned long SENSOR_INTERVAL    = 45000; // 45 s
 
 // ─── NVS namespaces ───────────────────────────────────────────────────────────
-static const char* PREF_CONFIG = "tara-device";
 
 // ─── Runtime discovered component (populated by discoverComponents()) ────────
 struct DiscoveredPin {
@@ -61,7 +60,6 @@ extern String     serverUrl;
 extern String     projectId;
 extern String     mqttHost;
 extern uint16_t   mqttPort;
-extern String     configTopic;
 extern RobotState currentState;
 extern WiFiClient wifiClient;
 extern PubSubClient mqttClient;
@@ -78,16 +76,12 @@ void publishHeartbeat();
 void publishSensor();
 String robotTopic(const String& suffix);
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-void loadLocalConfig();
-void applyConfig(const String& json);
-
 // ─── Boot log (device.cpp) ────────────────────────────────────────────────────
-// Prints a line to the OLED boot log. Logo stays at top, lines scroll up.
 void tlog(const String& msg);
 
-// ─── Device logic (robot/device.cpp) ─────────────────────────────────────────
+// ─── Device logic (device.cpp) ───────────────────────────────────────────────
 void setupDeviceHardware();
+void applyRobotConfig();
 void handleDisplay(const String& json);
 void handleEmotion(const String& json);
 void handleSpeech(const String& json);

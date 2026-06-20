@@ -178,9 +178,8 @@ void fetchMqttConfig() {
         String body = http.getString();
         JsonDocument doc;
         if (deserializeJson(doc, body) == DeserializationError::Ok) {
-            mqttHost    = doc["mqttHost"]    | mqttHost;
-            mqttPort    = doc["mqttPort"]    | mqttPort;
-            configTopic = doc["configTopic"] | configTopic;
+            mqttHost = doc["mqttHost"] | mqttHost;
+            mqttPort = doc["mqttPort"] | mqttPort;
 
             // If server hasn't configured an MQTT host, extract it from serverUrl
             // e.g. "http://192.168.0.107:30400" → "192.168.0.107"
@@ -197,8 +196,7 @@ void fetchMqttConfig() {
                 TLOG(LOG_INFO, "mqttHost derived from serverUrl: %s", mqttHost.c_str());
             }
 
-            TLOG(LOG_INFO, "MQTT config: %s:%d config=%s",
-                mqttHost.c_str(), mqttPort, configTopic.c_str());
+            TLOG(LOG_INFO, "MQTT config: %s:%d", mqttHost.c_str(), mqttPort);
             tlog("MQTT cfg: OK");
         }
     } else if (code == 404) {
@@ -230,11 +228,9 @@ void connectMQTT() {
             TLOG(LOG_INFO, "MQTT connected");
             tlog("MQTT: connected");
 
-            mqttClient.subscribe(robotTopic("config").c_str(),    1);
             mqttClient.subscribe(robotTopic("display").c_str(),   0);
             mqttClient.subscribe(robotTopic("emotion").c_str(),   0);
             mqttClient.subscribe(robotTopic("speech").c_str(),    0);
-            mqttClient.subscribe(robotTopic(configTopic).c_str(), 1);
         } else {
             TLOG(LOG_WARN, "MQTT connect failed (%d), retrying", mqttClient.state());
             tlog("MQTT: retry " + String(mqttClient.state()));
@@ -256,8 +252,7 @@ void mqttCallback(const char* topic, byte* payload, unsigned int length) {
     String msg = String((char*)payload, length);
     TLOG(LOG_DEBUG, "MQTT [%s]: %s", t.c_str(), msg.c_str());
 
-    if      (t.endsWith("/config") || t.endsWith("/" + configTopic)) applyConfig(msg);
-    else if (t.endsWith("/display"))  handleDisplay(msg);
+    if      (t.endsWith("/display"))  handleDisplay(msg);
     else if (t.endsWith("/emotion"))  handleEmotion(msg);
     else if (t.endsWith("/speech"))   handleSpeech(msg);
 }
@@ -282,27 +277,4 @@ void publishSensor() {
     String msg;
     serializeJson(doc, msg);
     mqttClient.publish(robotTopic("sensor").c_str(), msg.c_str(), false);
-}
-
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-void loadLocalConfig() {
-    Preferences prefs;
-    prefs.begin(PREF_CONFIG, true);
-    String json = prefs.getString("configJson", "");
-    prefs.end();
-    if (json.length() > 0) applyConfig(json);
-}
-
-void applyConfig(const String& json) {
-    Preferences prefs;
-    prefs.begin(PREF_CONFIG, false);
-    prefs.putString("configJson", json);
-    prefs.end();
-
-    JsonDocument doc;
-    if (deserializeJson(doc, json) != DeserializationError::Ok) return;
-    TLOG(LOG_INFO, "Config applied: v%d", (int)doc["version"]);
-    extern void applyRobotConfig(const JsonDocument&);
-    applyRobotConfig(doc);
 }

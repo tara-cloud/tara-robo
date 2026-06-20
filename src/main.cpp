@@ -3,7 +3,7 @@
 #include "TaraCore.h"
 #include <wifi4h.h>
 #include <ota4h.h>
-#include "TaraConfig.h"
+#include <config4h.h>
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
@@ -11,7 +11,6 @@ String     serverUrl;
 String     projectId;
 String     mqttHost;
 uint16_t   mqttPort     = 1883;
-String     configTopic  = "taraConfig";
 RobotState currentState = STATE_BOOTING;
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -38,7 +37,7 @@ void setup() {
     setupDeviceHardware();
     tlog("Boot v" FW_VERSION);
 
-    // ─── WiFi provisioning via wifi4h ────────────────────────────────────────
+    // ─── WiFi provisioning ───────────────────────────────────────────────────
     wifi4h_set_device_id(robotId);
     wifi4h_set_namespace("tara-wifi");
     wifi4h_add_field("ssid",        "string",   true);
@@ -53,12 +52,11 @@ void setup() {
 
     wifi4h_load();
 
-    // Populate globals from saved values
-    projectId = wifi4h_get("projectId");
-    String host     = wifi4h_get("host");
+    projectId        = wifi4h_get("projectId");
+    String host      = wifi4h_get("host");
     uint16_t svcPort = (uint16_t)wifi4h_get("servicePort").toInt();
     mqttPort         = (uint16_t)wifi4h_get("mqttPort").toInt();
-    if (svcPort == 0) svcPort = 30400;
+    if (svcPort  == 0) svcPort  = 30400;
     if (mqttPort == 0) mqttPort = 1883;
     if (host.length() > 0) {
         serverUrl = "http://" + host + ":" + String(svcPort);
@@ -69,13 +67,22 @@ void setup() {
     wifi4h_connect();
 
     registerRobot();
+
+    // ─── OTA ─────────────────────────────────────────────────────────────────
     ota4h_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
     ota4h_on_state([](const String& state, int pct) {
         tlog("OTA: " + state + (pct >= 0 ? " " + String(pct) + "%" : ""));
         if (state == "failed") setState(STATE_ERROR);
         if (state == "ok")     setState(STATE_IDLE);
     });
-    configMqttConnect();
+
+    // ─── Config ──────────────────────────────────────────────────────────────
+    config4h_on_change([]() {
+        applyRobotConfig();
+        setState(STATE_IDLE);
+        tlog("Config: applied");
+    });
+    config4h_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
 
     taraLogInit(nullptr, projectId, String(DEVICE_NAME));
 
@@ -86,9 +93,8 @@ void setup() {
 // ─── Loop ────────────────────────────────────────────────────────────────────
 void loop() {
     wifi4h_reconnect();
-
     ota4h_loop();
-    configMqttLoop();
+    config4h_loop();
 
     if (currentState == STATE_WAITING_CONFIG) {
         renderConfusedFace();
