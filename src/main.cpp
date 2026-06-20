@@ -1,13 +1,12 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "TaraCore.h"
+#include <wifi4h.h>
 #include <ota4h.h>
 #include "TaraConfig.h"
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
-String     wifiSSID;
-String     wifiPassword;
 String     serverUrl;
 String     projectId;
 String     mqttHost;
@@ -20,8 +19,7 @@ PubSubClient mqttClient(wifiClient);
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(115200);
-    
-    // Init log4c — Serial appender active immediately, MQTT wired after connect
+
     log4c_init();
     log4c_set("device", DEVICE_NAME);
 
@@ -36,12 +34,39 @@ void setup() {
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     robotId = String(macStr);
     tlog("Robot ID: " + robotId);
-    
+
     setupDeviceHardware();
     tlog("Boot v" FW_VERSION);
 
-    loadWiFiConfig();
-    connectToWiFi();
+    // ─── WiFi provisioning via wifi4h ────────────────────────────────────────
+    wifi4h_set_device_id(robotId);
+    wifi4h_set_namespace("tara-wifi");
+    wifi4h_add_field("ssid",        "string",   true);
+    wifi4h_add_field("password",    "password", false);
+    wifi4h_add_field("projectId",   "string",   true);
+    wifi4h_add_field("host",        "string",   true);
+    wifi4h_add_field("servicePort", "number",   false);
+    wifi4h_add_field("mqttPort",    "number",   false);
+    wifi4h_on_event([](const String& ev, const String& detail) {
+        tlog(ev + (detail.length() ? ": " + detail : ""));
+    });
+
+    wifi4h_load();
+
+    // Populate globals from saved values
+    projectId = wifi4h_get("projectId");
+    String host     = wifi4h_get("host");
+    uint16_t svcPort = (uint16_t)wifi4h_get("servicePort").toInt();
+    mqttPort         = (uint16_t)wifi4h_get("mqttPort").toInt();
+    if (svcPort == 0) svcPort = 4000;
+    if (mqttPort == 0) mqttPort = 1883;
+    if (host.length() > 0) {
+        serverUrl = "http://" + host + ":" + String(svcPort);
+        mqttHost  = host;
+    }
+
+    setState(STATE_CONNECTING);
+    wifi4h_connect();
 
     registerRobot();
     ota4h_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
@@ -52,19 +77,15 @@ void setup() {
     });
     configMqttConnect();
 
-    // Wire log4c MQTT appender using the OTA MQTT client's broker connection
     taraLogInit(nullptr, projectId, String(DEVICE_NAME));
 
     LINFO("Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
-
     setState(STATE_WAITING_CONFIG);
 }
 
 // ─── Loop ────────────────────────────────────────────────────────────────────
 void loop() {
-    if (WiFi.status() != WL_CONNECTED) {
-        connectToWiFi();
-    }
+    wifi4h_reconnect();
 
     ota4h_loop();
     configMqttLoop();

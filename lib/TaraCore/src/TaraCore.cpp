@@ -1,9 +1,8 @@
 #include "TaraCore.h"
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
-#include <WebServer.h>
-#include <DNSServer.h>
 #include <Wire.h>
+#include <wifi4h.h>
 
 // ─── Component discovery ──────────────────────────────────────────────────────
 
@@ -91,163 +90,6 @@ void addComponent(const String& name, const String& type, const String& protocol
     TLOG(LOG_INFO, "Component added: %s (%s)", name.c_str(), type.c_str());
 }
 
-// ─── WiFi ────────────────────────────────────────────────────────────────────
-
-void loadWiFiConfig() {
-    Preferences prefs;
-    prefs.begin(PREF_WIFI, true);
-    wifiSSID     = prefs.getString("ssid",      "");
-    wifiPassword = prefs.getString("password",  "");
-    projectId    = prefs.getString("projectId", "");
-    String host  = prefs.getString("host",      "");
-    uint16_t svcPort = prefs.getUShort("servicePort", 4000);
-    mqttPort         = prefs.getUShort("mqttPort",    1883);
-    prefs.end();
-
-    if (host.length() > 0) {
-        serverUrl = "http://" + host + ":" + String(svcPort);
-        mqttHost  = host;
-    }
-}
-
-void connectToWiFi() {
-    setState(STATE_CONNECTING);
-
-    if (wifiSSID.length() == 0) {
-        startSetupHotspot();
-        return;
-    }
-
-    tlog("WiFi: connecting...");
-    TLOG(LOG_INFO, "WiFi connecting to %s", wifiSSID.c_str());
-    WiFi.begin(wifiSSID.c_str(), wifiPassword.c_str());
-
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-        delay(500);
-        attempts++;
-    }
-
-    if (WiFi.status() != WL_CONNECTED) {
-        TLOG(LOG_WARN, "WiFi failed — starting hotspot");
-        tlog("WiFi: failed");
-        startSetupHotspot();
-    } else {
-        TLOG(LOG_INFO, "WiFi connected: %s", WiFi.localIP().toString().c_str());
-        tlog("WiFi: " + WiFi.localIP().toString());
-    }
-}
-
-static const char PORTAL_HTML[] PROGMEM = R"(<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Tara Setup</title>
-  <style>
-    body { font-family: sans-serif; max-width: 360px; margin: 40px auto; padding: 0 16px; }
-    h2   { text-align: center; }
-    label { display: block; margin-top: 12px; font-size: 14px; }
-    input { width: 100%; box-sizing: border-box; padding: 8px; margin-top: 4px; font-size: 15px; }
-    button { width: 100%; margin-top: 20px; padding: 12px; font-size: 16px;
-             background: #333; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    hr { margin: 18px 0; border: none; border-top: 1px solid #ccc; }
-    .section { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-top: 16px; }
-  </style>
-</head>
-<body>
-  <h2>&#x1F916; Tara Setup</h2>
-  <form method="POST" action="/save">
-    <p class="section">Project</p>
-    <label>Project ID<input name="projectId" placeholder="e.g. tara-home" required></label>
-
-    <p class="section">WiFi</p>
-    <label>SSID<input name="ssid" required></label>
-    <label>Password<input name="password" type="password"></label>
-
-    <p class="section">Server</p>
-    <label>Host<input name="host" placeholder="192.168.0.107" required></label>
-    <label>Service Port<input name="servicePort" type="number" value="4000" required></label>
-    <label>MQTT Port<input name="mqttPort" type="number" value="1883" required></label>
-
-    <button type="submit">Save &amp; Reboot</button>
-  </form>
-</body>
-</html>)";
-
-void startSetupHotspot() {
-    String apName = "Tara-" + robotId.substring(6); // last 6 chars of MAC
-    WiFi.softAP(apName.c_str(), AP_PASSWORD);
-    String apIp = WiFi.softAPIP().toString();
-    TLOG(LOG_INFO, "AP: %s  IP: %s", apName.c_str(), apIp.c_str());
-    tlog("AP: " + apName);
-    tlog("IP: " + apIp);
-
-    static DNSServer  dns;
-    static WebServer  server(80);
-
-    // Captive portal: redirect everything to the setup page
-    dns.start(53, "*", WiFi.softAPIP());
-
-    server.on("/", HTTP_GET, [&]() {
-        server.send_P(200, "text/html", PORTAL_HTML);
-    });
-
-    // iOS / Android captive portal probe endpoints
-    server.on("/generate_204",        HTTP_GET, [&]() { server.sendHeader("Location", "/"); server.send(302); });
-    server.on("/hotspot-detect.html", HTTP_GET, [&]() { server.send_P(200, "text/html", PORTAL_HTML); });
-    server.on("/connecttest.txt",     HTTP_GET, [&]() { server.sendHeader("Location", "/"); server.send(302); });
-
-    server.on("/save", HTTP_POST, [&]() {
-        String pid         = server.arg("projectId");
-        String ssid        = server.arg("ssid");
-        String password    = server.arg("password");
-        String host        = server.arg("host");
-        uint16_t svcPort   = (uint16_t)server.arg("servicePort").toInt();
-        uint16_t mqPort    = (uint16_t)server.arg("mqttPort").toInt();
-
-        if (pid.length() == 0 || ssid.length() == 0 || host.length() == 0) {
-            server.send(400, "text/plain", "Missing required fields");
-            return;
-        }
-        if (svcPort == 0) svcPort = 4000;
-        if (mqPort  == 0) mqPort  = 1883;
-
-        Preferences prefs;
-        prefs.begin(PREF_WIFI, false);
-        prefs.putString("projectId",   pid);
-        prefs.putString("ssid",        ssid);
-        prefs.putString("password",    password);
-        prefs.putString("host",        host);
-        prefs.putUShort("servicePort", svcPort);
-        prefs.putUShort("mqttPort",    mqPort);
-        prefs.end();
-
-        TLOG(LOG_INFO, "Portal: credentials saved — rebooting");
-        tlog("Saved! Rebooting...");
-        server.send(200, "text/html",
-            "<html><body style='font-family:sans-serif;text-align:center;padding:40px'>"
-            "<h2>&#x2705; Saved!</h2><p>Tara is rebooting and will connect to your network.</p>"
-            "</body></html>");
-        delay(1500);
-        ESP.restart();
-    });
-
-    // Catch-all redirect for captive portal detection on any unknown path
-    server.onNotFound([&]() {
-        server.sendHeader("Location", "/");
-        server.send(302);
-    });
-
-    server.begin();
-    TLOG(LOG_INFO, "Portal: serving captive portal");
-
-    while (true) {
-        dns.processNextRequest();
-        server.handleClient();
-    }
-}
-
 // ─── Registration ────────────────────────────────────────────────────────────
 
 void registerRobot() {
@@ -307,7 +149,7 @@ void registerRobot() {
             if (srvProjectId.length() > 0 && srvProjectId != projectId) {
                 projectId = srvProjectId;
                 Preferences prefs;
-                prefs.begin(PREF_WIFI, false);
+                prefs.begin("tara-wifi", false);
                 prefs.putString("projectId", projectId);
                 prefs.end();
                 TLOG(LOG_INFO, "Register: projectId updated: %s", projectId.c_str());

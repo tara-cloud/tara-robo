@@ -5,7 +5,6 @@
 #include <PubSubClient.h>
 #include <initializer_list>
 #include "TaraLog.h"
-
 // ─── Robot states ─────────────────────────────────────────────────────────────
 enum RobotState {
     STATE_BOOTING,
@@ -26,9 +25,7 @@ static const unsigned long HEARTBEAT_INTERVAL = 30000; // 30 s
 static const unsigned long SENSOR_INTERVAL    = 45000; // 45 s
 
 // ─── NVS namespaces ───────────────────────────────────────────────────────────
-static const char* PREF_WIFI   = "tara-wifi";
 static const char* PREF_CONFIG = "tara-device";
-static const char* AP_PASSWORD = "12345678";
 
 // ─── Runtime discovered component (populated by discoverComponents()) ────────
 struct DiscoveredPin {
@@ -60,8 +57,6 @@ void addComponent(const String& name, const String& type, const String& protocol
 
 // ─── Globals (defined in main.cpp) ───────────────────────────────────────────
 extern String     robotId;
-extern String     wifiSSID;
-extern String     wifiPassword;
 extern String     serverUrl;
 extern String     projectId;
 extern String     mqttHost;
@@ -70,11 +65,6 @@ extern String     configTopic;
 extern RobotState currentState;
 extern WiFiClient wifiClient;
 extern PubSubClient mqttClient;
-
-// ─── WiFi / Hotspot ──────────────────────────────────────────────────────────
-void loadWiFiConfig();
-void connectToWiFi();
-void startSetupHotspot();
 
 // ─── Registration (HTTP) ─────────────────────────────────────────────────────
 void registerRobot();
