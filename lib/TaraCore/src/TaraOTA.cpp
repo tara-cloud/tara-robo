@@ -1,5 +1,6 @@
 #include "TaraOTA.h"
 #include "TaraCore.h"
+#include "TaraLog.h"
 #include <ArduinoJson.h>
 #include <HTTPUpdate.h>
 #include <HTTPClient.h>
@@ -37,6 +38,12 @@ void otaMqttConnect() {
             _otaMqtt.subscribe(topic.c_str(), 1);
             Serial.printf("[OTA MQTT] connected — subscribed to: %s\n", topic.c_str());
             tlog("OTA MQTT: OK");
+
+            // Wire log4c MQTT appender now that broker is reachable
+            String logTopic = projectId + "/" + String(DEVICE_NAME) + "/logs";
+            log4c_set_mqtt(logTopic, [](const char* t, const char* p) -> bool {
+                return _otaMqtt.publish(t, p, false);
+            });
         } else {
             TLOG(LOG_WARN, "OTA MQTT failed (%d), retrying", _otaMqtt.state());
             delay(2000);
