@@ -59,7 +59,6 @@ void loop() {
 
     otaMqttLoop();
     configMqttLoop();
-    taraLogFlush();
 
     if (currentState == STATE_WAITING_CONFIG) {
         renderConfusedFace();
