@@ -338,7 +338,6 @@ void fetchMqttConfig() {
         if (deserializeJson(doc, body) == DeserializationError::Ok) {
             mqttHost    = doc["mqttHost"]    | mqttHost;
             mqttPort    = doc["mqttPort"]    | mqttPort;
-            otaTopic    = doc["otaTopic"]    | otaTopic;
             configTopic = doc["configTopic"] | configTopic;
 
             // If server hasn't configured an MQTT host, extract it from serverUrl
@@ -356,8 +355,8 @@ void fetchMqttConfig() {
                 TLOG(LOG_INFO, "mqttHost derived from serverUrl: %s", mqttHost.c_str());
             }
 
-            TLOG(LOG_INFO, "MQTT config: %s:%d ota=%s config=%s",
-                mqttHost.c_str(), mqttPort, otaTopic.c_str(), configTopic.c_str());
+            TLOG(LOG_INFO, "MQTT config: %s:%d config=%s",
+                mqttHost.c_str(), mqttPort, configTopic.c_str());
             tlog("MQTT cfg: OK");
         }
     } else if (code == 404) {
