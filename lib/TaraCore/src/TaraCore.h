@@ -4,7 +4,6 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <initializer_list>
-#include "TaraOTA.h"
 #include "TaraLog.h"
 
 // ─── Robot states ─────────────────────────────────────────────────────────────
@@ -67,7 +66,6 @@ extern String     serverUrl;
 extern String     projectId;
 extern String     mqttHost;
 extern uint16_t   mqttPort;
-extern String     otaTopic;
 extern String     configTopic;
 extern RobotState currentState;
 extern WiFiClient wifiClient;

@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "TaraCore.h"
-#include "TaraOTA.h"
+#include <ota4h.h>
 #include "TaraConfig.h"
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
@@ -12,7 +12,6 @@ String     serverUrl;
 String     projectId;
 String     mqttHost;
 uint16_t   mqttPort     = 1883;
-String     otaTopic     = "ota";
 String     configTopic  = "taraConfig";
 RobotState currentState = STATE_BOOTING;
 WiFiClient wifiClient;
@@ -45,7 +44,12 @@ void setup() {
     connectToWiFi();
 
     registerRobot();
-    otaMqttConnect();
+    ota4h_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
+    ota4h_on_state([](const String& state, int pct) {
+        tlog("OTA: " + state + (pct >= 0 ? " " + String(pct) + "%" : ""));
+        if (state == "failed") setState(STATE_ERROR);
+        if (state == "ok")     setState(STATE_IDLE);
+    });
     configMqttConnect();
 
     // Wire log4c MQTT appender using the OTA MQTT client's broker connection
@@ -62,7 +66,7 @@ void loop() {
         connectToWiFi();
     }
 
-    otaMqttLoop();
+    ota4h_loop();
     configMqttLoop();
 
     if (currentState == STATE_WAITING_CONFIG) {
