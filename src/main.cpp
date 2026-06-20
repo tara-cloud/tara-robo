@@ -21,7 +21,12 @@ PubSubClient mqttClient(wifiClient);
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(115200);
-    Serial.printf("\n[Tara] %s v%s\n", DEVICE_NAME, FW_VERSION);
+    
+    // Init log4c — Serial appender active immediately, MQTT wired after connect
+    log4c_init();
+    log4c_set("device", DEVICE_NAME);
+
+    tlog(String(DEVICE_NAME) + " v" + FW_VERSION);
 
     // Derive robotId from MAC
     uint8_t mac[6];
@@ -31,12 +36,8 @@ void setup() {
         "%02X%02X%02X%02X%02X%02X",
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     robotId = String(macStr);
-    Serial.printf("Robot ID: %s\n", robotId.c_str());
-
-    // Init log4c — Serial appender active immediately, MQTT wired after connect
-    log4c_init();
-    log4c_set("device", DEVICE_NAME);
-
+    tlog("Robot ID: " + robotId);
+    
     setupDeviceHardware();
     tlog("Boot v" FW_VERSION);
 
