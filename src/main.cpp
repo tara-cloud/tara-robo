@@ -58,7 +58,7 @@ void setup() {
     String host     = wifi4h_get("host");
     uint16_t svcPort = (uint16_t)wifi4h_get("servicePort").toInt();
     mqttPort         = (uint16_t)wifi4h_get("mqttPort").toInt();
-    if (svcPort == 0) svcPort = 4000;
+    if (svcPort == 0) svcPort = 30400;
     if (mqttPort == 0) mqttPort = 1883;
     if (host.length() > 0) {
         serverUrl = "http://" + host + ":" + String(svcPort);
