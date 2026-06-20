@@ -1,23 +1,28 @@
 #pragma once
-#include <Arduino.h>
-#include <PubSubClient.h>
+// ─── TaraLog — shim over log4c ────────────────────────────────────────────────
+// Bridges the old TLOG/LOG_* API to log4c so all TaraCore code works unchanged.
+// TaraLog.cpp is no longer needed — this header is self-contained.
 
-// Log levels
-#define LOG_DEBUG "DEBUG"
-#define LOG_INFO  "INFO"
-#define LOG_WARN  "WARN"
-#define LOG_ERROR "ERROR"
+#include <log4c.h>
 
-// TLOG macro — always safe to call from any context
-// Logs to Serial immediately, queues MQTT publish (non-blocking)
-#define TLOG(level, fmt, ...) taraLog(level, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+// Map old level constants → log4c levels
+#define LOG_DEBUG L4C_DEBUG
+#define LOG_INFO  L4C_INFO
+#define LOG_WARN  L4C_WARN
+#define LOG_ERROR L4C_ERROR
 
-// Call once after MQTT is connected — starts background drain task
-void taraLogInit(PubSubClient* mqtt, const String& projectId, const String& deviceName);
+// Map TLOG macro → LLOG macro
+#define TLOG(level, fmt, ...) LLOG(level, fmt, ##__VA_ARGS__)
 
-// Enqueue a log entry (thread-safe, never blocks)
-void taraLog(const char* level, const char* file, int line, const char* fmt, ...);
+// taraLogInit() — bridge to log4c_init() + device name
+// mqtt param is ignored (log4c manages its own MQTT connection)
+inline void taraLogInit(void* /*unused*/, const String& projectId,
+                        const String& deviceName) {
+    log4c_set("device", deviceName.c_str());
+    String topic = projectId + "/" + deviceName + "/logs";
+    log4c_set("mqtt.topic",   topic.c_str());
+    log4c_set("mqtt.enabled", "true");
+}
 
-// No longer needed — drain runs on its own FreeRTOS task
-// Kept as no-op for backward compatibility
+// No-op kept for backward compat
 inline void taraLogFlush() {}

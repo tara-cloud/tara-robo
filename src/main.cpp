@@ -33,6 +33,10 @@ void setup() {
     robotId = String(macStr);
     Serial.printf("Robot ID: %s\n", robotId.c_str());
 
+    // Init log4c — Serial appender active immediately, MQTT wired after connect
+    log4c_init();
+    log4c_set("device", DEVICE_NAME);
+
     setupDeviceHardware();
     tlog("Boot v" FW_VERSION);
 
@@ -43,10 +47,10 @@ void setup() {
     otaMqttConnect();
     configMqttConnect();
 
-    // Init logging service — publishes to projectId.log via OTA MQTT client
-    // Use the same mqttClient that's connected to the broker
-    taraLogInit(&mqttClient, projectId, String(DEVICE_NAME));
-    TLOG(LOG_INFO, "Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
+    // Wire log4c MQTT appender using the OTA MQTT client's broker connection
+    taraLogInit(nullptr, projectId, String(DEVICE_NAME));
+
+    LINFO("Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
 
     setState(STATE_WAITING_CONFIG);
 }
