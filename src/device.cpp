@@ -112,7 +112,10 @@ static TouchMe touch(32, true);
 
 void touchBegin() {
     touch.begin(20, 3);
-    touch.onTouch([]() { LINFO("touch: detected"); });
+    touch.onTouch([]() {
+        LINFO("touch: detected");
+        renderFace(FACE_GIGGLE);
+    });
 }
 
 void updateTouch() {
