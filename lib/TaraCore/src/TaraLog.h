@@ -18,7 +18,8 @@
 // mqtt param is ignored (log4c manages its own MQTT connection)
 inline void taraLogInit(void* /*unused*/, const String& projectId,
                         const String& deviceName) {
-    log4c_set("device", deviceName.c_str());
+    log4c_set("device",           deviceName.c_str());
+    log4c_set("firmwareVersion",  FW_VERSION);
     String topic = projectId + "/" + deviceName + "/logs";
     log4c_set("mqtt.topic",   topic.c_str());
     log4c_set("mqtt.enabled", "true");
