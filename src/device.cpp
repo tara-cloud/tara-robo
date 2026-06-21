@@ -113,7 +113,12 @@ void tlog(const String& msg) {
 static TouchMe touch(32, true);
 
 void touchBegin() {
-    touch.begin();
+    touch.begin(20, 3);
+    touch.setDebounce(15);           // ~150ms of stable signal to register — filters noise
+    touch.setLongPressTime(5000);    // 5s deliberate hold
+    touch.setTapWindow(3000);        // sensor lingers ~1-2s, allow up to 3s as tap
+    touch.setGapWindow(800);
+    touch.setPaddingInterval(500);
     touch.on(TOUCH_TAP,        []() { LINFO("touch: single tap"); });
     touch.on(TOUCH_DOUBLE_TAP, []() { LINFO("touch: double tap"); });
     touch.on(TOUCH_MULTI_TAP,  [](int n) { LINFO("touch: multi tap (%d)", n); });
