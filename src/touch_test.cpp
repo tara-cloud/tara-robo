@@ -124,8 +124,27 @@ void setup() {
     u8g2.begin();
     u8g2.setContrast(128);
 
-    Serial.printf("Touch test — GPIO%d  idle=%d  threshold=%d  (rises when touched)\n",
-                  TOUCH_PIN, IDLE_VAL, THRESHOLD);
+    // Scan all pins and show on screen — touch the wire during this
+    static const int PINS[] = {4, 0, 2, 15, 13, 12, 14, 27, 33, 32};
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(0, 10, "TOUCH YOUR PAD NOW");
+    u8g2.sendBuffer();
+    delay(2000);   // 2 s window — touch the IO wire during this
+
+    // Print all values while touching
+    u8g2.clearBuffer();
+    int row = 10;
+    for (int i = 0; i < 10; i++) {
+        int v = (int)touchRead(PINS[i]);
+        char buf[24]; snprintf(buf, sizeof(buf), "T%d G%d=%d", i, PINS[i], v);
+        u8g2.drawStr(0, row, buf);
+        row += 11;
+        if (row > 54) { u8g2.sendBuffer(); delay(2000); u8g2.clearBuffer(); row = 10; }
+        Serial.printf("  T%d GPIO%d = %d\n", i, PINS[i], v);
+    }
+    u8g2.sendBuffer();
+    delay(4000);   // read the screen
 
     _screen = S_IDLE;
     drawScreen();
