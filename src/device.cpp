@@ -106,85 +106,74 @@ void tlog(const String& msg) {
 //   long press  — held >= 600 ms (fires once on release)
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
-static const int   TOUCH_PIN          = 27;   // digital button, INPUT_PULLUP
-                                               // LOW = pressed (button pulls to GND)
-static const int   DEBOUNCE_COUNT     = 3;    // consecutive reads needed to change state
-static const unsigned long TAP_MAX_MS = 800;   // tap must release within this
-static const unsigned long DBL_WIN_MS = 500;   // window to detect second tap
-static const unsigned long LONG_MS    = 1500;  // hold this long to trigger long press
-static const unsigned long PAD_MS     = 400;   // padding repeat interval
+static const int   TOUCH_PIN          = 27;
+static const int   DEBOUNCE_COUNT     = 3;
+static const unsigned long TAP_WIN_MS = 600;   // max hold time to count as a tap
+static const unsigned long GAP_WIN_MS = 400;   // window after release to catch more taps
+static const unsigned long LONG_MS    = 1500;  // hold to trigger long press
 
-static bool          _touchDown      = false;
-static unsigned long _pressAt        = 0;
-static unsigned long _releaseAt      = 0;
-static int           _tapCount       = 0;
-static bool          _longFired      = false;
-static unsigned long _lastPadAt      = 0;
-static int           _debounceCount  = 0;
-static bool          _stableTouch    = false;
-static bool          _calibrated     = false;
+static bool          _touchDown    = false;
+static unsigned long _pressAt      = 0;
+static unsigned long _releaseAt    = 0;
+static int           _tapCount     = 0;
+static bool          _longFired    = false;
+static int           _debounceCount = 0;
+static bool          _stableTouch  = false;
+static bool          _calibrated   = false;
 
 static bool _isTouched() {
-    return digitalRead(TOUCH_PIN) == HIGH;  // HIGH = sensor triggered (pulls up)
+    return digitalRead(TOUCH_PIN) == HIGH;
 }
 
 void updateTouch() {
     unsigned long now = millis();
 
-    // Init pin once
     if (!_calibrated) {
         _calibrated = true;
-        pinMode(TOUCH_PIN, INPUT_PULLDOWN);   // sensor pulls HIGH when pressed
-        LINFO("touch: ready on GPIO%d (digitalRead, INPUT_PULLDOWN)", TOUCH_PIN);
+        pinMode(TOUCH_PIN, INPUT_PULLDOWN);
+        LINFO("touch: ready on GPIO%d", TOUCH_PIN);
     }
 
-    // ── Debounce ─────────────────────────────────────────────────────────────
+    // Debounce
     bool raw = _isTouched();
     if (raw == _stableTouch) {
         _debounceCount = 0;
     } else {
-        _debounceCount++;
-        if (_debounceCount >= DEBOUNCE_COUNT) {
+        if (++_debounceCount >= DEBOUNCE_COUNT) {
             _stableTouch   = raw;
             _debounceCount = 0;
         }
     }
-
     bool touched = _stableTouch;
 
-    // ── State machine ─────────────────────────────────────────────────────────
     if (touched && !_touchDown) {
-        _touchDown  = true;
-        _pressAt    = now;
-        _longFired  = false;
-        _lastPadAt  = now;
+        // Press start
+        _touchDown = true;
+        _pressAt   = now;
+        _longFired = false;
 
     } else if (touched && _touchDown) {
-        unsigned long held = now - _pressAt;
-        if (!_longFired && held >= LONG_MS) {
+        // Still held — check for long press
+        if (!_longFired && now - _pressAt >= LONG_MS) {
             _longFired = true;
-            _tapCount  = 0;
+            _tapCount  = 0;   // cancel any pending taps
             LINFO("touch: long press");
-        }
-        if (_longFired && now - _lastPadAt >= PAD_MS) {
-            _lastPadAt = now;
-            LINFO("touch: padding");
         }
 
     } else if (!touched && _touchDown) {
+        // Released
         _touchDown = false;
-        unsigned long held = now - _pressAt;
-        if (!_longFired && held < TAP_MAX_MS) {
+        if (!_longFired && now - _pressAt < TAP_WIN_MS) {
             _tapCount++;
             _releaseAt = now;
         }
 
     } else {
-        if (_tapCount > 0 && now - _releaseAt >= DBL_WIN_MS) {
-            if (_tapCount == 1)
-                LINFO("touch: single tap");
-            else
-                LINFO("touch: double tap");
+        // Not held — resolve tap count once gap window expires
+        if (_tapCount > 0 && now - _releaseAt >= GAP_WIN_MS) {
+            if      (_tapCount == 1) LINFO("touch: single tap");
+            else if (_tapCount == 2) LINFO("touch: double tap");
+            else                     LINFO("touch: multiple tap (%d)", _tapCount);
             _tapCount = 0;
         }
     }
