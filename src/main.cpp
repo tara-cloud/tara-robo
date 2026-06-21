@@ -22,6 +22,7 @@ void setup() {
 
     log4c_init();
     log4c_set("device", DEVICE_NAME);
+    log4c_set("firmwareVersion", FW_VERSION);
 
     tlog(String(DEVICE_NAME) + " v" + FW_VERSION);
 
@@ -89,7 +90,6 @@ void setup() {
     health_check_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME), String(FW_VERSION));
 
     // Wire log4c MQTT appender — enable MQTT logging with device/project context
-    log4c_set("firmwareVersion", FW_VERSION);
     String logTopic = projectId + "/" + String(DEVICE_NAME) + "/logs";
     log4c_set("mqtt.topic",   logTopic.c_str());
     log4c_set("mqtt.enabled", "true");
