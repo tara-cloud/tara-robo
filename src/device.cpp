@@ -9,6 +9,7 @@
 #include <U8g2lib.h>
 #include "U8g2Display.h"
 #include <config4h.h>
+#include <reg4h.h>
 #include "TaraExpressions.h"
 
 // ─── Display + TaraExpressions ───────────────────────────────────────────────
@@ -105,13 +106,20 @@ void tlog(const String& msg) {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 void setupDeviceHardware() {
-    // Scan I2C before u8g2 takes the bus (Wire.end() is called inside)
-    discoverComponents(I2C_SDA, I2C_SCL);
+    // Scan I2C bus — reg4h finds devices and calls Wire.end() when done
+    uint8_t i2cPins[] = {(uint8_t)I2C_SDA, (uint8_t)I2C_SCL};
+    reg4h_add_component("", "", "I2C", i2cPins, 2);
 
-    // Register GPIO components that aren't on the I2C bus
-    addComponent("TouchSensor", "input", "GPIO", {
-        { "GPIO18", "TOUCH", "input" }
-    });
+    // Log discovered I2C devices to OLED boot screen
+    for (int i = 0; i < reg4h_component_count(); i++) {
+        const Reg4hComponent* c = reg4h_get_component(i);
+        if (c->protocol == "I2C")
+            tlog(c->name + "@0x" + String(c->address, HEX));
+    }
+
+    // Register non-I2C components
+    uint8_t touchPins[] = {18};
+    reg4h_add_component("TouchSensor", "input", "GPIO", touchPins, 1);
 
     u8g2.begin();
     u8g2.setContrast((uint8_t)displayBrightness);
