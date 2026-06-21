@@ -20,11 +20,11 @@ static U8G2_SH1106_128X64_NONAME_F_SW_I2C
 static const int ALL_PINS[] = {4, 0, 2, 15, 13, 12, 14, 27, 33, 32};
 static const int N_PINS     = 10;
 
-// Pin 33: idle=128, touched=133 → value RISES when touched
-// Detection: touchRead(33) > THRESHOLD  (inverted from normal)
-static const int TOUCH_PIN  = 33;
-static const int IDLE_VAL   = 128;
-static const int THRESHOLD  = 130;  // above idle, below touched peak
+// Pin 32: idle=133, touched drops lower (or rises — we'll find out)
+// Detection: touchRead > THRESHOLD means touched (value rises on contact)
+static const int TOUCH_PIN  = 32;
+static const int IDLE_VAL   = 133;
+static const int THRESHOLD  = 130;  // below idle — triggered when value DROPS
 
 // ─── Touch state ──────────────────────────────────────────────────────────────
 static const int   DEBOUNCE   = 3;
@@ -121,30 +121,38 @@ static void drawScreen() {
 
 void setup() {
     Serial.begin(115200);
+
     u8g2.begin();
+    delay(100);   // let display initialise before first draw
     u8g2.setContrast(128);
 
-    // Scan all pins and show on screen — touch the wire during this
+    // ── Display test ──────────────────────────────────────────────────────────
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_ncenB14_tr);
+    u8g2.drawStr(10, 35, "TOUCH PAD");
+    u8g2.sendBuffer();
+
+    Serial.println("Touch test — scanning pins. Touch your IO pad now.");
+
+    delay(2000);   // user touches during this
+
+    // ── Scan all touch pins ───────────────────────────────────────────────────
     static const int PINS[] = {4, 0, 2, 15, 13, 12, 14, 27, 33, 32};
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.drawStr(0, 10, "TOUCH YOUR PAD NOW");
-    u8g2.sendBuffer();
-    delay(2000);   // 2 s window — touch the IO wire during this
 
-    // Print all values while touching
-    u8g2.clearBuffer();
-    int row = 10;
+    int col = 0, row = 8;
     for (int i = 0; i < 10; i++) {
         int v = (int)touchRead(PINS[i]);
-        char buf[24]; snprintf(buf, sizeof(buf), "T%d G%d=%d", i, PINS[i], v);
-        u8g2.drawStr(0, row, buf);
-        row += 11;
-        if (row > 54) { u8g2.sendBuffer(); delay(2000); u8g2.clearBuffer(); row = 10; }
-        Serial.printf("  T%d GPIO%d = %d\n", i, PINS[i], v);
+        Serial.printf("T%d GPIO%d = %d\n", i, PINS[i], v);
+        char buf[14]; snprintf(buf, sizeof(buf), "G%d=%d", PINS[i], v);
+        u8g2.drawStr(col, row, buf);
+        row += 10;
+        if (row > 55) { row = 8; col = 64; }
     }
     u8g2.sendBuffer();
-    delay(4000);   // read the screen
+    Serial.println("Check OLED — which pin value is different?");
+    delay(5000);   // read the screen
 
     _screen = S_IDLE;
     drawScreen();
@@ -168,7 +176,7 @@ void loop() {
     if (TOUCH_PIN < 0) return;
 
     // Debounce
-    bool raw = touchRead(TOUCH_PIN) > THRESHOLD;  // rises when touched
+    bool raw = touchRead(TOUCH_PIN) < THRESHOLD;  // drops when touched
     if (raw == _stable) { _dbc = 0; }
     else if (++_dbc >= DEBOUNCE) { _stable = raw; _dbc = 0; }
 
