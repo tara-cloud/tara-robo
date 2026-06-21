@@ -5,6 +5,7 @@
 #include <ota4h.h>
 #include <config4h.h>
 #include <reg4h.h>
+#include <health_check.h>
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
@@ -83,6 +84,9 @@ void setup() {
 
     registerRobot();
 
+    // ─── Health check ─────────────────────────────────────────────────────────
+    health_check_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
+
     taraLogInit(nullptr, projectId, String(DEVICE_NAME));
 
     LINFO("Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
@@ -94,6 +98,7 @@ void loop() {
     wifi4h_reconnect();
     ota4h_loop();
     config4h_loop();
+    health_check_loop();
 
     if (currentState == STATE_WAITING_CONFIG) {
         renderConfusedFace();
