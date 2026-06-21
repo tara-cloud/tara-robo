@@ -109,10 +109,10 @@ void tlog(const String& msg) {
 static const int   TOUCH_PIN          = 27;   // digital button, INPUT_PULLUP
                                                // LOW = pressed (button pulls to GND)
 static const int   DEBOUNCE_COUNT     = 3;    // consecutive reads needed to change state
-static const unsigned long TAP_MAX_MS = 400;  // press must be shorter to count as tap
-static const unsigned long DBL_WIN_MS = 350;  // max gap between two taps for double
-static const unsigned long LONG_MS    = 600;  // hold time to trigger long press
-static const unsigned long PAD_MS     = 300;  // padding repeat interval
+static const unsigned long TAP_MAX_MS = 800;   // tap must release within this
+static const unsigned long DBL_WIN_MS = 500;   // window to detect second tap
+static const unsigned long LONG_MS    = 1500;  // hold this long to trigger long press
+static const unsigned long PAD_MS     = 400;   // padding repeat interval
 
 static bool          _touchDown      = false;
 static unsigned long _pressAt        = 0;
