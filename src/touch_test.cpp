@@ -20,9 +20,11 @@ static U8G2_SH1106_128X64_NONAME_F_SW_I2C
 static const int ALL_PINS[] = {4, 0, 2, 15, 13, 12, 14, 27, 33, 32};
 static const int N_PINS     = 10;
 
-static int  TOUCH_PIN  = -1;
-static int  IDLE_VAL   = 0;
-static int  THRESHOLD  = 0;
+// Pin 33: idle=128, touched=133 → value RISES when touched
+// Detection: touchRead(33) > THRESHOLD  (inverted from normal)
+static const int TOUCH_PIN  = 33;
+static const int IDLE_VAL   = 128;
+static const int THRESHOLD  = 130;  // above idle, below touched peak
 
 // ─── Touch state ──────────────────────────────────────────────────────────────
 static const int   DEBOUNCE   = 3;
@@ -121,41 +123,9 @@ void setup() {
     Serial.begin(115200);
     u8g2.begin();
     u8g2.setContrast(128);
-    drawScreen();
-    delay(200);
 
-    // Find the pin with the highest idle touchRead value (most likely connected)
-    Serial.println("\n=== Touch pin scan ===");
-    int bestPin = -1, bestVal = 0;
-    for (int i = 0; i < N_PINS; i++) {
-        int v = (int)touchRead(ALL_PINS[i]);
-        Serial.printf("  T%d GPIO%d = %d\n", i, ALL_PINS[i], v);
-        if (v > bestVal) { bestVal = v; bestPin = ALL_PINS[i]; }
-    }
-
-    if (bestVal < 20) {
-        Serial.println("ERROR: no active touch pin found (all reading 0 or very low)");
-        Serial.println("Check wiring — IO wire must connect to a valid ESP32 touch pin");
-        u8g2.clearBuffer();
-        u8g2.setFont(u8g2_font_6x10_tf);
-        u8g2.drawStr(4, 25, "No touch pin found");
-        u8g2.drawStr(4, 40, "Check wiring!");
-        u8g2.sendBuffer();
-        while(1) delay(1000);
-    }
-
-    TOUCH_PIN = bestPin;
-    IDLE_VAL  = bestVal;
-    THRESHOLD = bestVal / 2;   // midpoint between idle and touched
-
-    Serial.printf("\nUsing GPIO%d  idle=%d  threshold=%d\n\n", TOUCH_PIN, IDLE_VAL, THRESHOLD);
-
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_6x10_tf);
-    char buf[32]; snprintf(buf, sizeof(buf), "GPIO%d idle=%d", TOUCH_PIN, IDLE_VAL);
-    u8g2.drawStr(4, 32, buf);
-    u8g2.sendBuffer();
-    delay(1500);
+    Serial.printf("Touch test — GPIO%d  idle=%d  threshold=%d  (rises when touched)\n",
+                  TOUCH_PIN, IDLE_VAL, THRESHOLD);
 
     _screen = S_IDLE;
     drawScreen();
@@ -171,17 +141,15 @@ void loop() {
         _screen = S_IDLE;
     }
 
-    // Refresh idle screen every 100 ms so raw value updates live
-    static unsigned long _lastDraw = 0;
-    if (_screen == S_IDLE && now - _lastDraw >= 100) {
-        _lastDraw = now;
+    // Refresh idle screen every loop tick — shows raw value in real time
+    if (_screen == S_IDLE) {
         drawScreen();
     }
 
     if (TOUCH_PIN < 0) return;
 
     // Debounce
-    bool raw = touchRead(TOUCH_PIN) < THRESHOLD;
+    bool raw = touchRead(TOUCH_PIN) > THRESHOLD;  // rises when touched
     if (raw == _stable) { _dbc = 0; }
     else if (++_dbc >= DEBOUNCE) { _stable = raw; _dbc = 0; }
 
