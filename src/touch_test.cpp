@@ -63,14 +63,14 @@ static void drawEyes(int openH, int eyeW = 36) {
 }
 
 static void bigText(const char* line1, const char* line2 = nullptr) {
-    u8g2.setFont(u8g2_font_ncenB18_tr);
+    u8g2.setFont(u8g2_font_ncenB14_tr);
     int w1 = u8g2.getStrWidth(line1);
     if (line2 == nullptr) {
-        u8g2.drawStr((128 - w1) / 2, 40, line1);
+        u8g2.drawStr((128 - w1) / 2, 38, line1);
     } else {
         int w2 = u8g2.getStrWidth(line2);
-        u8g2.drawStr((128 - w1) / 2, 28, line1);
-        u8g2.drawStr((128 - w2) / 2, 54, line2);
+        u8g2.drawStr((128 - w1) / 2, 26, line1);
+        u8g2.drawStr((128 - w2) / 2, 50, line2);
     }
 }
 
@@ -85,7 +85,8 @@ static void drawScreen() {
             u8g2.drawStr(20, 40, "pin...");
             break;
         case S_IDLE:
-            // blank screen when idle
+            u8g2.setFont(u8g2_font_6x10_tf);
+            u8g2.drawStr(30, 35, "Ready...");
             break;
         case S_TAP:
             bigText("TAP");
