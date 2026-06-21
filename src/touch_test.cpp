@@ -62,10 +62,16 @@ static void drawEyes(int openH, int eyeW = 36) {
     }
 }
 
-static void label(const char* txt) {
-    u8g2.setFont(u8g2_font_ncenB14_tr);
-    int w = u8g2.getStrWidth(txt);
-    u8g2.drawStr((128 - w) / 2, 60, txt);
+static void bigText(const char* line1, const char* line2 = nullptr) {
+    u8g2.setFont(u8g2_font_ncenB18_tr);
+    int w1 = u8g2.getStrWidth(line1);
+    if (line2 == nullptr) {
+        u8g2.drawStr((128 - w1) / 2, 40, line1);
+    } else {
+        int w2 = u8g2.getStrWidth(line2);
+        u8g2.drawStr((128 - w1) / 2, 28, line1);
+        u8g2.drawStr((128 - w2) / 2, 54, line2);
+    }
 }
 
 static void drawScreen() {
@@ -79,25 +85,21 @@ static void drawScreen() {
             u8g2.drawStr(20, 40, "pin...");
             break;
         case S_IDLE:
-            drawEyes(36);
+            // blank screen when idle
             break;
         case S_TAP:
-            drawEyes(0);
-            label("TAP");
+            bigText("TAP");
             break;
         case S_DOUBLE:
-            drawEyes(18);
-            label("TAP TAP");
+            bigText("TAP", "TAP");
             break;
         case S_MULTI: {
-            drawEyes(44);
-            char buf[16]; snprintf(buf, sizeof(buf), "TAP x%d", _multiN);
-            label(buf);
+            char buf[10]; snprintf(buf, sizeof(buf), "TAP x%d", _multiN);
+            bigText(buf);
             break;
         }
         case S_HOLD:
-            drawEyes(0);
-            label("HOLD");
+            bigText("HOLD");
             break;
     }
 
