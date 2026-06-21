@@ -84,10 +84,18 @@ static void drawScreen() {
             u8g2.drawStr(10, 25, "Searching touch");
             u8g2.drawStr(20, 40, "pin...");
             break;
-        case S_IDLE:
-            u8g2.setFont(u8g2_font_6x10_tf);
-            u8g2.drawStr(30, 35, "Ready...");
+        case S_IDLE: {
+            // Show live raw value so we can see if touching changes it
+            int raw = TOUCH_PIN >= 0 ? (int)touchRead(TOUCH_PIN) : -1;
+            u8g2.setFont(u8g2_font_ncenB14_tr);
+            char buf[20]; snprintf(buf, sizeof(buf), "raw: %d", raw);
+            int w = u8g2.getStrWidth(buf);
+            u8g2.drawStr((128 - w) / 2, 26, buf);
+            char buf2[20]; snprintf(buf2, sizeof(buf2), "thr: %d", THRESHOLD);
+            int w2 = u8g2.getStrWidth(buf2);
+            u8g2.drawStr((128 - w2) / 2, 50, buf2);
             break;
+        }
         case S_TAP:
             bigText("TAP");
             break;
@@ -161,6 +169,12 @@ void loop() {
     // Revert to idle after 1.5 s
     if (_screen != S_IDLE && _screen != S_HOLD && now >= _showUntil) {
         _screen = S_IDLE;
+    }
+
+    // Refresh idle screen every 100 ms so raw value updates live
+    static unsigned long _lastDraw = 0;
+    if (_screen == S_IDLE && now - _lastDraw >= 100) {
+        _lastDraw = now;
         drawScreen();
     }
 
