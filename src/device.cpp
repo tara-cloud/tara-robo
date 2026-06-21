@@ -108,27 +108,17 @@ void tlog(const String& msg) {
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
 // ─── Touch ────────────────────────────────────────────────────────────────────
-// GPIO32, value rises when touched (risingOnTouch=true).
-// begin() measures idle at boot and sets threshold = idle + 3 automatically.
 static TouchMe touch(32, true);
 
 void touchBegin() {
     touch.begin(20, 3);
-    touch.setDebounce(15);           // ~150ms of stable signal to register — filters noise
-    touch.setLongPressTime(5000);    // 5s deliberate hold
-    touch.setTapWindow(3000);        // sensor lingers ~1-2s, allow up to 3s as tap
-    touch.setGapWindow(800);
-    touch.setPaddingInterval(500);
-    touch.on(TOUCH_TAP,        []() { LINFO("touch: single tap"); });
-    touch.on(TOUCH_DOUBLE_TAP, []() { LINFO("touch: double tap"); });
-    touch.on(TOUCH_MULTI_TAP,  [](int n) { LINFO("touch: multi tap (%d)", n); });
-    touch.on(TOUCH_LONG_PRESS, []() { LINFO("touch: long press"); });
-    touch.on(TOUCH_PADDING,    []() { LINFO("touch: padding"); });
+    touch.onTouch([]() { LINFO("touch: detected"); });
 }
 
 void updateTouch() {
     touch.update();
 }
+
 
 
 // ─── Public API ───────────────────────────────────────────────────────────────
