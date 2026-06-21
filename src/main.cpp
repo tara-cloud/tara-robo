@@ -85,7 +85,7 @@ void setup() {
     registerRobot();
 
     // ─── Health check ─────────────────────────────────────────────────────────
-    health_check_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
+    health_check_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME), String(FW_VERSION));
 
     taraLogInit(nullptr, projectId, String(DEVICE_NAME));
 
