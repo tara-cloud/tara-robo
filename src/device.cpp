@@ -10,6 +10,7 @@
 #include <face.h>
 #include <tara_face.h>
 #include <U8g2Display.h>
+#include <touch_me.h>
 
 // ─── Display ──────────────────────────────────────────────────────────────────
 static const int I2C_SCL = 22;
@@ -106,79 +107,22 @@ void tlog(const String& msg) {
 //   long press  — held >= 600 ms (fires once on release)
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
-// ─── Touch — bare conductive pad via ESP32 capacitive touch peripheral ─────────
-// No pinMode needed — touchRead() uses the hardware capacitive circuit directly.
-// Value drops when touched: idle ~40-80, touched ~5-15. THRESHOLD is midpoint.
-static const int   TOUCH_PIN      = 33;
-static const int   TOUCH_THRESHOLD = 25;   // touched when touchRead() < this
-static const int   DEBOUNCE_COUNT  = 3;
+// ─── Touch ────────────────────────────────────────────────────────────────────
+// GPIO32, value rises when touched (risingOnTouch=true).
+// begin() measures idle at boot and sets threshold = idle + 3 automatically.
+static TouchMe touch(32, true);
 
-static const unsigned long TAP_WIN_MS = 1000;  // hold < this = counts as tap
-static const unsigned long GAP_WIN_MS = 500;   // collect multi-taps in this window
-static const unsigned long LONG_MS    = 2000;  // hold >= this = long press
-
-static bool          _touchDown    = false;
-static unsigned long _pressAt      = 0;
-static unsigned long _releaseAt    = 0;
-static int           _tapCount     = 0;
-static bool          _longFired    = false;
-static int           _debounceCount = 0;
-static bool          _stableTouch  = false;
-static bool          _calibrated   = false;
-
-static bool _isTouched() {
-    return touchRead(TOUCH_PIN) < TOUCH_THRESHOLD;
+void touchBegin() {
+    touch.begin();
+    touch.on(TOUCH_TAP,        []() { LINFO("touch: single tap"); });
+    touch.on(TOUCH_DOUBLE_TAP, []() { LINFO("touch: double tap"); });
+    touch.on(TOUCH_MULTI_TAP,  [](int n) { LINFO("touch: multi tap (%d)", n); });
+    touch.on(TOUCH_LONG_PRESS, []() { LINFO("touch: long press"); });
+    touch.on(TOUCH_PADDING,    []() { LINFO("touch: padding"); });
 }
 
 void updateTouch() {
-    unsigned long now = millis();
-
-    if (!_calibrated) {
-        _calibrated = true;
-        LINFO("touch: ready on GPIO%d (idle=%d threshold=%d)",
-              TOUCH_PIN, (int)touchRead(TOUCH_PIN), TOUCH_THRESHOLD);
-    }
-
-    // Debounce — require DEBOUNCE_COUNT consecutive same reads before state flips
-    bool raw = _isTouched();
-    if (raw == _stableTouch) {
-        _debounceCount = 0;
-    } else {
-        if (++_debounceCount >= DEBOUNCE_COUNT) {
-            _stableTouch   = raw;
-            _debounceCount = 0;
-        }
-    }
-    bool touched = _stableTouch;
-
-    if (touched && !_touchDown) {
-        _touchDown = true;
-        _pressAt   = now;
-        _longFired = false;
-
-    } else if (touched && _touchDown) {
-        if (!_longFired && now - _pressAt >= LONG_MS) {
-            _longFired = true;
-            _tapCount  = 0;
-            LINFO("touch: long press");
-        }
-
-    } else if (!touched && _touchDown) {
-        _touchDown = false;
-        unsigned long held = now - _pressAt;
-        if (!_longFired && held < TAP_WIN_MS) {
-            _tapCount++;
-            _releaseAt = now;
-        }
-
-    } else {
-        if (_tapCount > 0 && now - _releaseAt >= GAP_WIN_MS) {
-            if      (_tapCount == 1) LINFO("touch: single tap");
-            else if (_tapCount == 2) LINFO("touch: double tap");
-            else                     LINFO("touch: multiple tap (%d)", _tapCount);
-            _tapCount = 0;
-        }
-    }
+    touch.update();
 }
 
 
@@ -194,8 +138,10 @@ void setupDeviceHardware() {
             tlog(c->name + "@0x" + String(c->address, HEX));
     }
 
-    uint8_t touchPins[] = {33};
+    uint8_t touchPins[] = {32};
     reg4h_add_component("TouchSensor", "input", "GPIO", touchPins, 1);
+
+    touchBegin();          // init touch-me library with auto-calibration
 
     u8g2.begin();
     u8g2.setContrast((uint8_t)displayBrightness);

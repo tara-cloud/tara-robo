@@ -40,6 +40,7 @@ void tlog(const String& msg);
 
 // ─── Device logic (device.cpp) ───────────────────────────────────────────────
 void setupDeviceHardware();
+void touchBegin();
 void updateTouch();
 void applyRobotConfig();
 void handleDisplay(const String& json);
