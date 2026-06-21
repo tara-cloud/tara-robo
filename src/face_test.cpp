@@ -1,84 +1,99 @@
+// Face test — SH1106 128x64 OLED via U8g2 SW_I2C (SDA=21, SCL=22)
+// pio run -e test-face -t upload
+//
+// Touch GPIO32 to cycle: IDLE → HAPPY → SAD → ANGRY → LOVE → IDLE
+
 #include <Arduino.h>
-#include <TFT_eSPI.h>
+#include <U8g2lib.h>
 
-TFT_eSPI tft = TFT_eSPI();
+static U8G2_SH1106_128X64_NONAME_F_SW_I2C
+    u8g2(U8G2_R0, /*scl*/22, /*sda*/21, U8X8_PIN_NONE);
 
-#define FACE_COLOR TFT_CYAN
-#define BG_COLOR TFT_BLACK
+// ─── Touch ────────────────────────────────────────────────────────────────────
+static const int TOUCH_PIN = 32;
+static unsigned long _lastTouch = 0;
 
-unsigned long lastBlink = 0;
-unsigned long lastMove  = 0;
+bool isTouched() { return (int)touchRead(TOUCH_PIN) > 130; }
 
-int eyeOffsetX = 0;
-int eyeOffsetY = 0;
-
-// ─── Face order ───────────────────────────────────────────────────────────────
+// ─── Face state ───────────────────────────────────────────────────────────────
 enum Face { IDLE, HAPPY, SAD, ANGRY, LOVE, FACE_COUNT };
 static Face currentFace = IDLE;
 
-// ─── Touch ────────────────────────────────────────────────────────────────────
-static const int   TOUCH_PIN  = 32;
-static int         _idleVal   = 0;
-static unsigned long _lastTouch = 0;
-
-bool isTouched() {
-    return (int)touchRead(TOUCH_PIN) > 130;   // GPIO32: idle=128, touched=133+
-}
+// ─── Idle animation ───────────────────────────────────────────────────────────
+static int eyeOffsetX   = 0, eyeOffsetY = 0;
+static int targetX      = 0, targetY    = 0;
+static float floatX     = 0, floatY     = 0;
+static unsigned long nextMove = 0;
+static unsigned long lastBlink = 0;
 
 // ─── Drawing ──────────────────────────────────────────────────────────────────
 
-void clearFace() { tft.fillScreen(BG_COLOR); }
-
 void drawEye(int x, int y, int w, int h) {
-    tft.fillRoundRect(x, y, w, h, 6, FACE_COLOR);
+    u8g2.drawRBox(x, y, w, h, 6);
 }
 
 void drawIdleFace() {
-    clearFace();
-    drawEye(32 + eyeOffsetX, 55 + eyeOffsetY, 20, 20);
-    drawEye(76 + eyeOffsetX, 55 + eyeOffsetY, 20, 20);
-}
-
-void drawBlinkFace() {
-    clearFace();
-    tft.fillRoundRect(32 + eyeOffsetX, 65 + eyeOffsetY, 20, 4, 2, FACE_COLOR);
-    tft.fillRoundRect(76 + eyeOffsetX, 65 + eyeOffsetY, 20, 4, 2, FACE_COLOR);
+    u8g2.clearBuffer();
+    u8g2.setDrawColor(1);
+    drawEye(14 + eyeOffsetX, 22 + eyeOffsetY, 40, 20);
+    drawEye(74 + eyeOffsetX, 22 + eyeOffsetY, 40, 20);
+    u8g2.sendBuffer();
 }
 
 void drawHappyFace() {
-    clearFace();
-    for (int i = 0; i < 20; i++) {
-        tft.drawPixel(32 + i, 65 - (i / 4), FACE_COLOR);
-        tft.drawPixel(76 + i, 65 - (i / 4), FACE_COLOR);
+    u8g2.clearBuffer();
+    u8g2.setDrawColor(1);
+    // Arched happy eyes — fill roundrect then mask bottom half
+    for (int side : {14, 74}) {
+        u8g2.drawRBox(side, 22, 40, 20, 10);
+        u8g2.setDrawColor(0);
+        u8g2.drawBox(side, 32, 40, 11);  // mask bottom
+        u8g2.setDrawColor(1);
     }
+    u8g2.sendBuffer();
 }
 
 void drawSadFace() {
-    clearFace();
-    for (int i = 0; i < 20; i++) {
-        tft.drawPixel(32 + i, 60 + (i / 4), FACE_COLOR);
-        tft.drawPixel(76 + i, 60 + (i / 4), FACE_COLOR);
+    u8g2.clearBuffer();
+    u8g2.setDrawColor(1);
+    // Drooping eyes — fill roundrect then mask top half, flip
+    for (int side : {14, 74}) {
+        u8g2.drawRBox(side, 22, 40, 20, 10);
+        u8g2.setDrawColor(0);
+        u8g2.drawBox(side, 22, 40, 11);  // mask top
+        u8g2.setDrawColor(1);
     }
+    u8g2.sendBuffer();
 }
 
 void drawAngryFace() {
-    clearFace();
-    tft.fillTriangle(30, 65, 52, 55, 52, 70, FACE_COLOR);
-    tft.fillTriangle(98, 65, 76, 55, 76, 70, FACE_COLOR);
+    u8g2.clearBuffer();
+    u8g2.setDrawColor(1);
+    // Rectangle eyes with angry inner brow cut
+    for (int side : {14, 74}) {
+        u8g2.drawRBox(side, 22, 40, 20, 4);
+        u8g2.setDrawColor(0);
+        if (side == 14)
+            u8g2.drawTriangle(side, 22, side + 40, 22, side + 40, 32); // left eye angry
+        else
+            u8g2.drawTriangle(side, 22, side + 40, 22, side, 32);       // right eye angry
+        u8g2.setDrawColor(1);
+    }
+    u8g2.sendBuffer();
 }
-
-void drawHeart(int x, int y);
 
 void drawLoveFace() {
-    clearFace();
-    drawHeart(42, 65);
-    drawHeart(86, 65);
-}
-
-void drawHeart(int x, int y) {
-    tft.fillCircle(x - 4, y - 4, 4, FACE_COLOR);
-    tft.fillCircle(x + 4, y - 4, 4, FACE_COLOR);
-    tft.fillTriangle(x - 8, y - 2, x + 8, y - 2, x, y + 10, FACE_COLOR);
+    u8g2.clearBuffer();
+    u8g2.setDrawColor(1);
+    // Two hearts
+    auto heart = [](int cx, int cy) {
+        u8g2.drawDisc(cx - 5, cy - 4, 5);
+        u8g2.drawDisc(cx + 5, cy - 4, 5);
+        u8g2.drawTriangle(cx - 10, cy - 2, cx + 10, cy - 2, cx, cy + 10);
+    };
+    heart(34, 32);
+    heart(94, 32);
+    u8g2.sendBuffer();
 }
 
 void showFace(Face f) {
@@ -88,69 +103,90 @@ void showFace(Face f) {
         case SAD:   drawSadFace();   break;
         case ANGRY: drawAngryFace(); break;
         case LOVE:  drawLoveFace();  break;
-        default: break;
+        default:    break;
     }
 }
 
-// ─── Idle animations ──────────────────────────────────────────────────────────
+// ─── Idle blink (non-blocking) ────────────────────────────────────────────────
+void blinkTick() {
+    unsigned long now = millis();
+    static bool blinkActive = false;
+    static unsigned long blinkStart = 0;
 
-void blinkAnimation() {
-    drawBlinkFace();
-    unsigned long t = millis();
-    while (millis() - t < 120) {
-        if (isTouched() && millis() - _lastTouch > 400) {
-            _lastTouch  = millis();
-            currentFace = (Face)((currentFace + 1) % FACE_COUNT);
+    if (!blinkActive && now - lastBlink > (unsigned long)random(4000, 8000)) {
+        blinkActive = true; blinkStart = now; lastBlink = now;
+    }
+    if (blinkActive) {
+        unsigned long e = now - blinkStart;
+        if (e < 350) {
+            float t   = (float)e / 350.0f;
+            int lidH  = (int)(t * t * 21);
+            u8g2.clearBuffer(); u8g2.setDrawColor(1);
+            for (int side : {14, 74}) {
+                u8g2.drawRBox(side + eyeOffsetX, 22 + eyeOffsetY, 40, 20, 6);
+                u8g2.setDrawColor(0);
+                u8g2.drawBox(side + eyeOffsetX, 22 + eyeOffsetY, 40, min(lidH, 15));
+                u8g2.setDrawColor(1);
+            }
+            u8g2.sendBuffer();
+        } else {
+            blinkActive = false;
+            drawIdleFace();
         }
     }
-    drawIdleFace();
 }
 
-void randomEyeMovement() {
-    eyeOffsetX = random(-3, 4);
-    eyeOffsetY = random(-2, 3);
-    drawIdleFace();
-}
+// ─── Idle eye drift (non-blocking) ───────────────────────────────────────────
+static const int8_t POSITIONS[][2] = {
+    {0,0},{0,0},{0,0},{-4,0},{4,0},{0,-3},{0,3},{-4,-3},{4,-3}
+};
 
-void idleBehavior() {
-    if (millis() - lastBlink > (unsigned long)random(3000, 7000)) {
-        blinkAnimation();
-        lastBlink = millis();
+void driftTick() {
+    unsigned long now = millis();
+    if (now >= nextMove) {
+        int idx = random(0, 9);
+        targetX   = POSITIONS[idx][0];
+        targetY   = POSITIONS[idx][1];
+        nextMove  = now + 3000 + random(0, 1000);
     }
-    if (millis() - lastMove > (unsigned long)random(1500, 3000)) {
-        randomEyeMovement();
-        lastMove = millis();
-    }
+    floatX += (targetX - floatX) * 0.08f;
+    floatY += (targetY - floatY) * 0.08f;
+    eyeOffsetX = (int)floatX;
+    eyeOffsetY = (int)floatY;
+    drawIdleFace();
 }
 
 // ─── Setup / Loop ─────────────────────────────────────────────────────────────
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("=== face_test v3 — touch GPIO32 to cycle faces ===");
-    tft.init();
-    tft.setRotation(1);
-    randomSeed(micros());
+    Serial.println("=== face_test v4 — SH1106 OLED, touch GPIO32 to cycle ===");
 
-    // Calibrate idle touch
-    long sum = 0;
+    u8g2.begin();
+    u8g2.setContrast(200);
+
+    int sum = 0;
     for (int i = 0; i < 20; i++) { sum += touchRead(TOUCH_PIN); delay(10); }
-    _idleVal = (int)(sum / 20);
-    Serial.printf("Touch GPIO%d idle=%d threshold=130\n", TOUCH_PIN, _idleVal);
+    Serial.printf("Touch GPIO%d idle=%d threshold=130\n", TOUCH_PIN, sum / 20);
 
+    nextMove = millis() + 3000;
     drawIdleFace();
 }
 
 void loop() {
-    // Touch — cycle to next face
+    // Touch — cycle face
     if (isTouched() && millis() - _lastTouch > 400) {
         _lastTouch  = millis();
         currentFace = (Face)((currentFace + 1) % FACE_COUNT);
         showFace(currentFace);
+        Serial.printf("Face: %d\n", currentFace);
     }
 
-    // Run idle animations only when on idle face
+    // Idle animations only on idle face
     if (currentFace == IDLE) {
-        idleBehavior();
+        driftTick();
+        blinkTick();
     }
+
+    delay(16);
 }
