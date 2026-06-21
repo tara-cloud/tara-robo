@@ -107,10 +107,10 @@ void tlog(const String& msg) {
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
 static const int   TOUCH_PIN          = 27;   // TTP223B — HIGH = touched
-static const int   DEBOUNCE_COUNT     = 10;   // 10 × loop(10ms) = 100ms stable needed
-static const unsigned long TAP_WIN_MS = 600;   // max hold time to count as a tap
-static const unsigned long GAP_WIN_MS = 400;   // window after release to catch more taps
-static const unsigned long LONG_MS    = 1500;  // hold to trigger long press
+static const int   DEBOUNCE_COUNT     = 3;    // 3 stable reads
+static const unsigned long TAP_WIN_MS = 9000; // no limit — just log hold time
+static const unsigned long GAP_WIN_MS = 800;
+static const unsigned long LONG_MS    = 99000; // disable long press for now
 
 static bool          _touchDown    = false;
 static unsigned long _pressAt      = 0;
@@ -134,6 +134,14 @@ void updateTouch() {
         LINFO("touch: ready on GPIO%d", TOUCH_PIN);
     }
 
+    // Raw edge detection — bypasses debounce to confirm pin works at all
+    static bool _rawPrev = false;
+    bool rawNow = digitalRead(TOUCH_PIN) == HIGH;
+    if (rawNow != _rawPrev) {
+        _rawPrev = rawNow;
+        LINFO("touch: GPIO%d edge → %s", TOUCH_PIN, rawNow ? "HIGH" : "LOW");
+    }
+
     // Debounce
     bool raw = _isTouched();
     if (raw == _stableTouch) {
@@ -151,19 +159,22 @@ void updateTouch() {
         _touchDown = true;
         _pressAt   = now;
         _longFired = false;
+        LINFO("touch: press");
 
     } else if (touched && _touchDown) {
         // Still held — check for long press
         if (!_longFired && now - _pressAt >= LONG_MS) {
             _longFired = true;
-            _tapCount  = 0;   // cancel any pending taps
+            _tapCount  = 0;
             LINFO("touch: long press");
         }
 
     } else if (!touched && _touchDown) {
         // Released
+        unsigned long held = now - _pressAt;
         _touchDown = false;
-        if (!_longFired && now - _pressAt < TAP_WIN_MS) {
+        LINFO("touch: release held=%lums", held);
+        if (!_longFired) {   // count all releases that aren't long press
             _tapCount++;
             _releaseAt = now;
         }

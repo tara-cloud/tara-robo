@@ -107,6 +107,4 @@ void loop() {
     updateTouch();
 
     renderFace(toFaceState(currentState));
-
-    delay(10);
 }
