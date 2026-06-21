@@ -19,7 +19,7 @@ static U8G2_SH1106_128X64_NONAME_F_SW_I2C
     u8g2(U8G2_R0, I2C_SCL, I2C_SDA, U8X8_PIN_NONE);
 
 static U8g2Display<U8G2_SH1106_128X64_NONAME_F_SW_I2C> displayAdapter(&u8g2);
-static TaraFace taraFace(&displayAdapter, 128, 64, 50);
+static TaraFace taraFace(&displayAdapter);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 static int  displayBrightness = 128;
@@ -117,15 +117,7 @@ void setupDeviceHardware() {
     u8g2.setContrast((uint8_t)displayBrightness);
     redrawBootScreen();
 
-    // Configure and register tara-face
-    taraFace.setWidth(36, 36);
-    taraFace.setHeight(36, 36);
-    taraFace.setBorderRadius(8, 8);
-    taraFace.setSpaceBetween(10);
-    taraFace.setCuriosity(true);
-    taraFace.setAutoblinker(true, 3, 4);
-    taraFace.setIdleMode(true, 2, 3);
-    taraFace.begin();   // registers with face.h dispatcher
+    taraFace.begin();   // registers FACE_IDLE with face.h dispatcher
 
     LINFO("Hardware ready — SH1106 128x64");
 }
