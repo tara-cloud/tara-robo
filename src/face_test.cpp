@@ -22,7 +22,7 @@ static int         _idleVal   = 0;
 static unsigned long _lastTouch = 0;
 
 bool isTouched() {
-    return (int)touchRead(TOUCH_PIN) > (_idleVal + 3);
+    return (int)touchRead(TOUCH_PIN) > 130;   // GPIO32: idle=128, touched=133+
 }
 
 // ─── Drawing ──────────────────────────────────────────────────────────────────
@@ -96,7 +96,13 @@ void showFace(Face f) {
 
 void blinkAnimation() {
     drawBlinkFace();
-    delay(120);
+    unsigned long t = millis();
+    while (millis() - t < 120) {
+        if (isTouched() && millis() - _lastTouch > 400) {
+            _lastTouch  = millis();
+            currentFace = (Face)((currentFace + 1) % FACE_COUNT);
+        }
+    }
     drawIdleFace();
 }
 
@@ -121,6 +127,7 @@ void idleBehavior() {
 
 void setup() {
     Serial.begin(115200);
+    Serial.println("=== face_test v3 — touch GPIO32 to cycle faces ===");
     tft.init();
     tft.setRotation(1);
     randomSeed(micros());
@@ -129,7 +136,7 @@ void setup() {
     long sum = 0;
     for (int i = 0; i < 20; i++) { sum += touchRead(TOUCH_PIN); delay(10); }
     _idleVal = (int)(sum / 20);
-    Serial.printf("Touch GPIO%d idle=%d\n", TOUCH_PIN, _idleVal);
+    Serial.printf("Touch GPIO%d idle=%d threshold=130\n", TOUCH_PIN, _idleVal);
 
     drawIdleFace();
 }
