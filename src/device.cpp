@@ -1,6 +1,6 @@
 // Tara Robot — device logic
 // Display: SH1106 128x64 via U8g2 SW_I2C (SDA=21, SCL=22)
-// Faces dispatched via face lib — swap emo-face for any other implementation.
+// Faces dispatched via face lib — tara-face provides RoboEyes-style rendering.
 
 #include "TaraCore.h"
 #include <ArduinoJson.h>
@@ -8,7 +8,7 @@
 #include <config4h.h>
 #include <reg4h.h>
 #include <face.h>
-#include <emo_face.h>
+#include <tara_face.h>
 #include <U8g2Display.h>
 
 // ─── Display ──────────────────────────────────────────────────────────────────
@@ -19,6 +19,7 @@ static U8G2_SH1106_128X64_NONAME_F_SW_I2C
     u8g2(U8G2_R0, I2C_SCL, I2C_SDA, U8X8_PIN_NONE);
 
 static U8g2Display<U8G2_SH1106_128X64_NONAME_F_SW_I2C> displayAdapter(&u8g2);
+static TaraFace taraFace(&displayAdapter, 128, 64, 50);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 static int  displayBrightness = 128;
@@ -116,8 +117,15 @@ void setupDeviceHardware() {
     u8g2.setContrast((uint8_t)displayBrightness);
     redrawBootScreen();
 
-    // Register emo-face as the face renderer
-    face_register(emo_face_renderer(&displayAdapter));
+    // Configure and register tara-face
+    taraFace.setWidth(36, 36);
+    taraFace.setHeight(36, 36);
+    taraFace.setBorderRadius(8, 8);
+    taraFace.setSpaceBetween(10);
+    taraFace.setCuriosity(true);
+    taraFace.setAutoblinker(true, 3, 4);
+    taraFace.setIdleMode(true, 2, 3);
+    taraFace.begin();   // registers with face.h dispatcher
 
     LINFO("Hardware ready — SH1106 128x64");
 }
