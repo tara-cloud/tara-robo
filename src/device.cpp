@@ -106,7 +106,7 @@ void tlog(const String& msg) {
 //   long press  — held >= 600 ms (fires once on release)
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
-static const int   TOUCH_PIN          = 18;
+static const int   TOUCH_PIN          = 27;   // GPIO27 = Touch T7 (capacitive)
 static const int   TOUCH_THRESHOLD    = 20;   // touched when reading drops BELOW this
                                                // ESP32 idle ~40-80, touched ~5-15
 static const int   DEBOUNCE_COUNT     = 3;    // consecutive reads needed to change state
@@ -206,7 +206,7 @@ void setupDeviceHardware() {
             tlog(c->name + "@0x" + String(c->address, HEX));
     }
 
-    uint8_t touchPins[] = {18};
+    uint8_t touchPins[] = {27};
     reg4h_add_component("TouchSensor", "input", "GPIO", touchPins, 1);
 
     u8g2.begin();
