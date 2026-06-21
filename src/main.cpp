@@ -4,6 +4,7 @@
 #include <wifi4h.h>
 #include <ota4h.h>
 #include <config4h.h>
+#include <reg4h.h>
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
@@ -12,8 +13,6 @@ String     projectId;
 String     mqttHost;
 uint16_t   mqttPort     = 1883;
 RobotState currentState = STATE_BOOTING;
-WiFiClient wifiClient;
-PubSubClient mqttClient(wifiClient);
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {

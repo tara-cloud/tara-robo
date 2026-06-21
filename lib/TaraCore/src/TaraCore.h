@@ -2,7 +2,6 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <WiFi.h>
-#include <PubSubClient.h>
 #include "TaraLog.h"
 // ─── Robot states ─────────────────────────────────────────────────────────────
 enum RobotState {
@@ -32,20 +31,9 @@ extern String     projectId;
 extern String     mqttHost;
 extern uint16_t   mqttPort;
 extern RobotState currentState;
-extern WiFiClient wifiClient;
-extern PubSubClient mqttClient;
 
 // ─── Registration (HTTP) ─────────────────────────────────────────────────────
 void registerRobot();
-void fetchMqttConfig();
-
-// ─── MQTT ────────────────────────────────────────────────────────────────────
-void connectMQTT();
-void loopMQTT();
-void mqttCallback(const char* topic, byte* payload, unsigned int length);
-void publishHeartbeat();
-void publishSensor();
-String robotTopic(const String& suffix);
 
 // ─── Boot log (device.cpp) ────────────────────────────────────────────────────
 void tlog(const String& msg);
