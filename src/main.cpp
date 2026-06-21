@@ -104,6 +104,7 @@ void loop() {
     ota4h_loop();
     config4h_loop();
     health_check_loop();
+    updateTouch();
 
     renderFace(toFaceState(currentState));
 
