@@ -9,11 +9,11 @@
 void registerRobot() {
     setState(STATE_REGISTERING);
     if (WiFi.status() != WL_CONNECTED) {
-        TLOG(LOG_WARN, "Register: no WiFi — skipping");
+        LWARN( "Register: no WiFi — skipping");
         return;
     }
     if (serverUrl.length() == 0) {
-        TLOG(LOG_WARN, "Register: no serverUrl — skipping");
+        LWARN( "Register: no serverUrl — skipping");
         tlog("No server URL!");
         return;
     }
@@ -51,7 +51,7 @@ void registerRobot() {
 
     String body;
     serializeJson(doc, body);
-    TLOG(LOG_INFO, "Register: POST %s/device/register", serverUrl.c_str());
+    LINFO( "Register: POST %s/device/register", serverUrl.c_str());
     http.setTimeout(10000);
     int code = http.POST(body);
 
@@ -66,13 +66,13 @@ void registerRobot() {
                 prefs.begin("tara-wifi", false);
                 prefs.putString("projectId", projectId);
                 prefs.end();
-                TLOG(LOG_INFO, "Register: projectId updated: %s", projectId.c_str());
+                LINFO( "Register: projectId updated: %s", projectId.c_str());
             }
         }
         tlog("Registered: OK");
     } else {
         String errBody = http.getString();
-        TLOG(LOG_ERROR, "Register failed: code=%d body=%s", code, errBody.c_str());
+        LERROR( "Register failed: code=%d body=%s", code, errBody.c_str());
         tlog("Register: fail " + String(code));
     }
     http.end();

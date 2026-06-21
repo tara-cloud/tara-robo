@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <WiFi.h>
-#include "TaraLog.h"
+#include <log4c.h>
 // ─── Robot states ─────────────────────────────────────────────────────────────
 enum RobotState {
     STATE_BOOTING,
@@ -44,6 +44,4 @@ void applyRobotConfig();
 void handleDisplay(const String& json);
 void handleEmotion(const String& json);
 void handleSpeech(const String& json);
-void renderIdleFace();
-void renderConfusedFace();
 void setState(RobotState s);

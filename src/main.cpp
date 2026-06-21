@@ -6,6 +6,7 @@
 #include <config4h.h>
 #include <reg4h.h>
 #include <health_check.h>
+#include <face.h>
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
@@ -34,7 +35,7 @@ void setup() {
     robotId = String(macStr);
     tlog("Robot ID: " + robotId);
 
-    setupDeviceHardware();
+    setupDeviceHardware();   // also calls face_register(emo_face_renderer(...))
     tlog("Boot v" FW_VERSION);
 
     // ─── WiFi provisioning ───────────────────────────────────────────────────
@@ -87,7 +88,11 @@ void setup() {
     // ─── Health check ─────────────────────────────────────────────────────────
     health_check_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME), String(FW_VERSION));
 
-    taraLogInit(nullptr, projectId, String(DEVICE_NAME));
+    // Wire log4c MQTT appender — enable MQTT logging with device/project context
+    log4c_set("firmwareVersion", FW_VERSION);
+    String logTopic = projectId + "/" + String(DEVICE_NAME) + "/logs";
+    log4c_set("mqtt.topic",   logTopic.c_str());
+    log4c_set("mqtt.enabled", "true");
 
     LINFO("Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
     setState(STATE_WAITING_CONFIG);
@@ -100,13 +105,7 @@ void loop() {
     config4h_loop();
     health_check_loop();
 
-    if (currentState == STATE_WAITING_CONFIG) {
-        renderConfusedFace();
-    }
-
-    if (currentState == STATE_IDLE) {
-        renderIdleFace();
-    }
+    renderFace(toFaceState(currentState));
 
     delay(10);
 }
