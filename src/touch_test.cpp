@@ -135,7 +135,7 @@ void setup() {
     long sum = 0;
     for (int i = 0; i < 20; i++) { sum += touchRead(TOUCH_PIN); delay(10); }
     IDLE_VAL  = (int)(sum / 20);
-    THRESHOLD = IDLE_VAL - 30;   // 30 below idle = reliable trigger point
+    THRESHOLD = IDLE_VAL + 3;    // value RISES when touched — trigger above idle
 
     Serial.printf("GPIO%d  idle=%d  threshold=%d\n", TOUCH_PIN, IDLE_VAL, THRESHOLD);
 
@@ -171,7 +171,7 @@ void loop() {
     if (TOUCH_PIN < 0) return;
 
     // Debounce
-    bool raw = touchRead(TOUCH_PIN) < THRESHOLD;  // drops when touched
+    bool raw = touchRead(TOUCH_PIN) > THRESHOLD;  // rises when touched
     if (raw == _stable) { _dbc = 0; }
     else if (++_dbc >= DEBOUNCE) { _stable = raw; _dbc = 0; }
 
