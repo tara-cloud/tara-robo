@@ -106,9 +106,8 @@ void tlog(const String& msg) {
 //   long press  — held >= 600 ms (fires once on release)
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
-static const int   TOUCH_PIN          = 27;   // GPIO27 = Touch T7 (capacitive)
-static const int   TOUCH_THRESHOLD    = 20;   // touched when reading drops BELOW this
-                                               // ESP32 idle ~40-80, touched ~5-15
+static const int   TOUCH_PIN          = 27;   // digital button, INPUT_PULLUP
+                                               // LOW = pressed (button pulls to GND)
 static const int   DEBOUNCE_COUNT     = 3;    // consecutive reads needed to change state
 static const unsigned long TAP_MAX_MS = 400;  // press must be shorter to count as tap
 static const unsigned long DBL_WIN_MS = 350;  // max gap between two taps for double
@@ -121,31 +120,28 @@ static unsigned long _releaseAt      = 0;
 static int           _tapCount       = 0;
 static bool          _longFired      = false;
 static unsigned long _lastPadAt      = 0;
-static int           _debounceCount  = 0;     // consecutive same-state reads
-static bool          _stableTouch    = false; // debounced touch state
-
-// Print raw value once at boot so threshold can be tuned
-static bool _calibrated = false;
+static int           _debounceCount  = 0;
+static bool          _stableTouch    = false;
+static bool          _calibrated     = false;
 
 static bool _isTouched() {
-    return touchRead(TOUCH_PIN) < TOUCH_THRESHOLD;
+    return digitalRead(TOUCH_PIN) == HIGH;  // HIGH = sensor triggered (pulls up)
 }
 
 void updateTouch() {
     unsigned long now = millis();
 
-    // ── Calibration print (once at boot) ─────────────────────────────────────
+    // Init pin once
     if (!_calibrated) {
         _calibrated = true;
-        LINFO("touch: idle raw value = %d  (threshold = %d)",
-              (int)touchRead(TOUCH_PIN), TOUCH_THRESHOLD);
+        pinMode(TOUCH_PIN, INPUT_PULLDOWN);   // sensor pulls HIGH when pressed
+        LINFO("touch: ready on GPIO%d (digitalRead, INPUT_PULLDOWN)", TOUCH_PIN);
     }
 
     // ── Debounce ─────────────────────────────────────────────────────────────
-    // Only flip _stableTouch after DEBOUNCE_COUNT consecutive matching reads
     bool raw = _isTouched();
     if (raw == _stableTouch) {
-        _debounceCount = 0;   // reading matches stable state — reset counter
+        _debounceCount = 0;
     } else {
         _debounceCount++;
         if (_debounceCount >= DEBOUNCE_COUNT) {
