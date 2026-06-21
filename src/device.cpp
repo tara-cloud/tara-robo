@@ -107,18 +107,25 @@ void tlog(const String& msg) {
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
 static const int   TOUCH_PIN          = 18;
-static const int   TOUCH_THRESHOLD    = 40;   // capacitive threshold (0 = touched)
+static const int   TOUCH_THRESHOLD    = 20;   // touched when reading drops BELOW this
+                                               // ESP32 idle ~40-80, touched ~5-15
+static const int   DEBOUNCE_COUNT     = 3;    // consecutive reads needed to change state
 static const unsigned long TAP_MAX_MS = 400;  // press must be shorter to count as tap
 static const unsigned long DBL_WIN_MS = 350;  // max gap between two taps for double
 static const unsigned long LONG_MS    = 600;  // hold time to trigger long press
 static const unsigned long PAD_MS     = 300;  // padding repeat interval
 
 static bool          _touchDown      = false;
-static unsigned long _pressAt        = 0;     // when current press started
-static unsigned long _releaseAt      = 0;     // when last release happened
-static int           _tapCount       = 0;     // taps in current window
-static bool          _longFired      = false; // long press event already sent
+static unsigned long _pressAt        = 0;
+static unsigned long _releaseAt      = 0;
+static int           _tapCount       = 0;
+static bool          _longFired      = false;
 static unsigned long _lastPadAt      = 0;
+static int           _debounceCount  = 0;     // consecutive same-state reads
+static bool          _stableTouch    = false; // debounced touch state
+
+// Print raw value once at boot so threshold can be tuned
+static bool _calibrated = false;
 
 static bool _isTouched() {
     return touchRead(TOUCH_PIN) < TOUCH_THRESHOLD;
@@ -126,41 +133,57 @@ static bool _isTouched() {
 
 void updateTouch() {
     unsigned long now = millis();
-    bool touched = _isTouched();
 
+    // ── Calibration print (once at boot) ─────────────────────────────────────
+    if (!_calibrated) {
+        _calibrated = true;
+        LINFO("touch: idle raw value = %d  (threshold = %d)",
+              (int)touchRead(TOUCH_PIN), TOUCH_THRESHOLD);
+    }
+
+    // ── Debounce ─────────────────────────────────────────────────────────────
+    // Only flip _stableTouch after DEBOUNCE_COUNT consecutive matching reads
+    bool raw = _isTouched();
+    if (raw == _stableTouch) {
+        _debounceCount = 0;   // reading matches stable state — reset counter
+    } else {
+        _debounceCount++;
+        if (_debounceCount >= DEBOUNCE_COUNT) {
+            _stableTouch   = raw;
+            _debounceCount = 0;
+        }
+    }
+
+    bool touched = _stableTouch;
+
+    // ── State machine ─────────────────────────────────────────────────────────
     if (touched && !_touchDown) {
-        // ── Press start ───────────────────────────────────────────────────────
         _touchDown  = true;
         _pressAt    = now;
         _longFired  = false;
         _lastPadAt  = now;
 
     } else if (touched && _touchDown) {
-        // ── Still held ────────────────────────────────────────────────────────
         unsigned long held = now - _pressAt;
         if (!_longFired && held >= LONG_MS) {
             _longFired = true;
-            _tapCount  = 0;   // cancel any pending tap
+            _tapCount  = 0;
             LINFO("touch: long press");
         }
-        // Padding — repeat while held after long press
         if (_longFired && now - _lastPadAt >= PAD_MS) {
             _lastPadAt = now;
             LINFO("touch: padding");
         }
 
     } else if (!touched && _touchDown) {
-        // ── Release ───────────────────────────────────────────────────────────
         _touchDown = false;
         unsigned long held = now - _pressAt;
-
         if (!_longFired && held < TAP_MAX_MS) {
             _tapCount++;
             _releaseAt = now;
         }
 
     } else {
-        // ── Not touched — resolve pending tap after double-tap window expires ─
         if (_tapCount > 0 && now - _releaseAt >= DBL_WIN_MS) {
             if (_tapCount == 1)
                 LINFO("touch: single tap");
