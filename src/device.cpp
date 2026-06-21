@@ -106,8 +106,8 @@ void tlog(const String& msg) {
 //   long press  — held >= 600 ms (fires once on release)
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
-static const int   TOUCH_PIN          = 27;
-static const int   DEBOUNCE_COUNT     = 3;
+static const int   TOUCH_PIN          = 27;   // TTP223B — HIGH = touched
+static const int   DEBOUNCE_COUNT     = 10;   // 10 × loop(10ms) = 100ms stable needed
 static const unsigned long TAP_WIN_MS = 600;   // max hold time to count as a tap
 static const unsigned long GAP_WIN_MS = 400;   // window after release to catch more taps
 static const unsigned long LONG_MS    = 1500;  // hold to trigger long press
