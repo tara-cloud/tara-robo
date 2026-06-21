@@ -106,11 +106,16 @@ void tlog(const String& msg) {
 //   long press  — held >= 600 ms (fires once on release)
 //   padding     — held >= 600 ms, then fires every 300 ms while still held
 
-static const int   TOUCH_PIN          = 27;   // TTP223B — HIGH = touched
-static const int   DEBOUNCE_COUNT     = 3;    // 3 stable reads
-static const unsigned long TAP_WIN_MS = 9000; // no limit — just log hold time
-static const unsigned long GAP_WIN_MS = 800;
-static const unsigned long LONG_MS    = 99000; // disable long press for now
+// ─── Touch — bare conductive pad via ESP32 capacitive touch peripheral ─────────
+// No pinMode needed — touchRead() uses the hardware capacitive circuit directly.
+// Value drops when touched: idle ~40-80, touched ~5-15. THRESHOLD is midpoint.
+static const int   TOUCH_PIN      = 27;
+static const int   TOUCH_THRESHOLD = 25;   // touched when touchRead() < this
+static const int   DEBOUNCE_COUNT  = 3;
+
+static const unsigned long TAP_WIN_MS = 1000;  // hold < this = counts as tap
+static const unsigned long GAP_WIN_MS = 500;   // collect multi-taps in this window
+static const unsigned long LONG_MS    = 2000;  // hold >= this = long press
 
 static bool          _touchDown    = false;
 static unsigned long _pressAt      = 0;
@@ -122,7 +127,7 @@ static bool          _stableTouch  = false;
 static bool          _calibrated   = false;
 
 static bool _isTouched() {
-    return digitalRead(TOUCH_PIN) == HIGH;
+    return touchRead(TOUCH_PIN) < TOUCH_THRESHOLD;
 }
 
 void updateTouch() {
@@ -130,19 +135,15 @@ void updateTouch() {
 
     if (!_calibrated) {
         _calibrated = true;
-        pinMode(TOUCH_PIN, INPUT_PULLDOWN);
-        LINFO("touch: ready on GPIO%d", TOUCH_PIN);
+        static const int touchPins[] = {4, 0, 2, 15, 13, 12, 14, 27, 33, 32};
+        Serial.println("[touch-scan] idle values (touch the wire while reading):");
+        for (int i = 0; i < 10; i++) {
+            Serial.printf("  T%d GPIO%-2d = %d\n", i, touchPins[i], (int)touchRead(touchPins[i]));
+            delay(50);
+        }
     }
 
-    // Raw edge detection — bypasses debounce to confirm pin works at all
-    static bool _rawPrev = false;
-    bool rawNow = digitalRead(TOUCH_PIN) == HIGH;
-    if (rawNow != _rawPrev) {
-        _rawPrev = rawNow;
-        LINFO("touch: GPIO%d edge → %s", TOUCH_PIN, rawNow ? "HIGH" : "LOW");
-    }
-
-    // Debounce
+    // Debounce — require DEBOUNCE_COUNT consecutive same reads before state flips
     bool raw = _isTouched();
     if (raw == _stableTouch) {
         _debounceCount = 0;
@@ -155,14 +156,11 @@ void updateTouch() {
     bool touched = _stableTouch;
 
     if (touched && !_touchDown) {
-        // Press start
         _touchDown = true;
         _pressAt   = now;
         _longFired = false;
-        LINFO("touch: press");
 
     } else if (touched && _touchDown) {
-        // Still held — check for long press
         if (!_longFired && now - _pressAt >= LONG_MS) {
             _longFired = true;
             _tapCount  = 0;
@@ -170,17 +168,14 @@ void updateTouch() {
         }
 
     } else if (!touched && _touchDown) {
-        // Released
-        unsigned long held = now - _pressAt;
         _touchDown = false;
-        LINFO("touch: release held=%lums", held);
-        if (!_longFired) {   // count all releases that aren't long press
+        unsigned long held = now - _pressAt;
+        if (!_longFired && held < TAP_WIN_MS) {
             _tapCount++;
             _releaseAt = now;
         }
 
     } else {
-        // Not held — resolve tap count once gap window expires
         if (_tapCount > 0 && now - _releaseAt >= GAP_WIN_MS) {
             if      (_tapCount == 1) LINFO("touch: single tap");
             else if (_tapCount == 2) LINFO("touch: double tap");
@@ -189,6 +184,7 @@ void updateTouch() {
         }
     }
 }
+
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
