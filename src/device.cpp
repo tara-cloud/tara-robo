@@ -109,7 +109,7 @@ void tlog(const String& msg) {
 // ─── Touch — bare conductive pad via ESP32 capacitive touch peripheral ─────────
 // No pinMode needed — touchRead() uses the hardware capacitive circuit directly.
 // Value drops when touched: idle ~40-80, touched ~5-15. THRESHOLD is midpoint.
-static const int   TOUCH_PIN      = 27;
+static const int   TOUCH_PIN      = 33;
 static const int   TOUCH_THRESHOLD = 25;   // touched when touchRead() < this
 static const int   DEBOUNCE_COUNT  = 3;
 
@@ -135,12 +135,8 @@ void updateTouch() {
 
     if (!_calibrated) {
         _calibrated = true;
-        static const int touchPins[] = {4, 0, 2, 15, 13, 12, 14, 27, 33, 32};
-        Serial.println("[touch-scan] idle values (touch the wire while reading):");
-        for (int i = 0; i < 10; i++) {
-            Serial.printf("  T%d GPIO%-2d = %d\n", i, touchPins[i], (int)touchRead(touchPins[i]));
-            delay(50);
-        }
+        LINFO("touch: ready on GPIO%d (idle=%d threshold=%d)",
+              TOUCH_PIN, (int)touchRead(TOUCH_PIN), TOUCH_THRESHOLD);
     }
 
     // Debounce — require DEBOUNCE_COUNT consecutive same reads before state flips
@@ -198,7 +194,7 @@ void setupDeviceHardware() {
             tlog(c->name + "@0x" + String(c->address, HEX));
     }
 
-    uint8_t touchPins[] = {27};
+    uint8_t touchPins[] = {33};
     reg4h_add_component("TouchSensor", "input", "GPIO", touchPins, 1);
 
     u8g2.begin();
