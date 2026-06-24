@@ -1,5 +1,23 @@
 # Changelog — tara-robo
 
+## [1.8.3] — 2026-06-24
+
+### Added
+
+- `ci.yml`: compile-check workflow on every PR and non-main branch push
+  - Injects `POCKET_API_KEY` secret into library dependency URLs at build time
+  - Injects version from `VERSION` file into `FW_VERSION` build flag
+  - Compiles `robot` env — must pass before PR can be merged
+- `release.yml`: auto-create GitHub release on every merge to `main`
+  - Tags release as `v{VERSION}` from the `VERSION` file
+  - Idempotent — skips if tag already exists
+- `publish.yml`: build and publish firmware to Pocket on release
+  - Checks out exact release tag, compiles `robot` env
+  - Packages firmware as `tara-robo-{VERSION}.bin`
+  - Uploads to Pocket via `POCKET_API_KEY` org-level secret
+
+---
+
 ## [1.5.0] — 2026-06-19
 
 ### Added

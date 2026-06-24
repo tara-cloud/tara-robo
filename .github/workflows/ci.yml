@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+
+jobs:
+  compile:
+    name: Compile firmware
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject version
+        run: |
+          VERSION=$(cat VERSION)
+          sed -i "s/-DFW_VERSION='\"[^\"]*\"'/-DFW_VERSION='\"${VERSION}\"'/" platformio.ini
+
+      - name: Compile robot firmware
+        run: pio run -e robot
