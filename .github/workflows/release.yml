@@ -11,26 +11,67 @@ jobs:
   release:
     name: Create release
     runs-on: self-hosted
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.value }}
+      skipped: ${{ steps.create.outputs.skipped }}
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Read version
         id: version
-        run: echo "value=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION=$(cat VERSION)
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
+        id: create
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=${{ steps.version.outputs.value }}
-          TAG="v${VERSION}"
-          # Skip if tag already exists (re-push without version bump)
+          TAG=${{ steps.version.outputs.tag }}
           if gh release view "$TAG" > /dev/null 2>&1; then
             echo "Release $TAG already exists, skipping."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           gh release create "$TAG" \
-            --title "v${VERSION}" \
-            --notes "Release v${VERSION}" \
+            --title "$TAG" \
+            --notes "Release $TAG" \
             --latest
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Build and publish firmware
+    runs-on: self-hosted
+    needs: release
+    if: needs.release.outputs.skipped != 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Inject version
+        run: |
+          VERSION=${{ needs.release.outputs.version }}
+          sed -i "s/-DFW_VERSION='\"[^\"]*\"'/-DFW_VERSION='\"${VERSION}\"'/" platformio.ini
+
+      - name: Compile robot firmware
+        run: pio run -e robot
+
+      - name: Package firmware
+        run: |
+          VERSION=${{ needs.release.outputs.version }}
+          cp .pio/build/robot/firmware.bin "tara-robo-${VERSION}.bin"
+
+      - name: Upload to Pocket
+        run: |
+          VERSION=${{ needs.release.outputs.version }}
+          FIRMWARE="tara-robo-${VERSION}.bin"
+          curl -f -X POST \
+            "http://tara-pi.local:30600/api/files/tara-robo/tara-robo/${VERSION}/${FIRMWARE}" \
+            -H "Authorization: Bearer ${{ secrets.POCKET_API_KEY }}" \
+            -F "file=@${FIRMWARE}"
