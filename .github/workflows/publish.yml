@@ -36,6 +36,6 @@ jobs:
           VERSION=$(cat VERSION)
           FIRMWARE="tara-robo-${VERSION}.bin"
           curl -f -X POST \
-            "http://192.168.0.107:30600/api/files/tara-robo/tara-robo/${VERSION}/${FIRMWARE}" \
+            "http://tara-pi.local:30600/api/files/tara-robo/tara-robo/${VERSION}/${FIRMWARE}" \
             -H "Authorization: Bearer ${{ secrets.POCKET_API_KEY }}" \
             -F "file=@${FIRMWARE}"
