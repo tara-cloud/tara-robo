@@ -1,0 +1,45 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    name: Build and publish firmware
+    runs-on: self-hosted
+
+    steps:
+      - name: Get release version
+        id: version
+        run: echo "value=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Inject Pocket token
+        run: |
+          sed -i 's|?token=[a-zA-Z0-9_]*|?token=${{ secrets.POCKET_API_KEY }}|g' platformio.ini
+
+      - name: Inject version
+        run: |
+          VERSION=$(cat VERSION)
+          sed -i "s/-DFW_VERSION='\"[^\"]*\"'/-DFW_VERSION='\"${VERSION}\"'/" platformio.ini
+
+      - name: Compile robot firmware
+        run: pio run -e robot
+
+      - name: Package firmware
+        run: |
+          VERSION=$(cat VERSION)
+          cp .pio/build/robot/firmware.bin "tara-robo-${VERSION}.bin"
+
+      - name: Upload to Pocket
+        run: |
+          VERSION=$(cat VERSION)
+          FIRMWARE="tara-robo-${VERSION}.bin"
+          curl -f -X POST \
+            "http://192.168.0.107:30600/api/files/tara-robo/tara-robo/${VERSION}/${FIRMWARE}" \
+            -H "Authorization: Bearer ${{ secrets.POCKET_API_KEY }}" \
+            -F "file=@${FIRMWARE}"
