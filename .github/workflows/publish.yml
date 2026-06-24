@@ -18,16 +18,14 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
-      - name: Inject Pocket token
-        run: |
-          sed -i 's|?token=[a-zA-Z0-9_]*|?token=${{ secrets.POCKET_API_KEY }}|g' platformio.ini
-
       - name: Inject version
         run: |
           VERSION=$(cat VERSION)
           sed -i "s/-DFW_VERSION='\"[^\"]*\"'/-DFW_VERSION='\"${VERSION}\"'/" platformio.ini
 
       - name: Compile robot firmware
+        env:
+          POCKET_API_KEY: ${{ secrets.POCKET_API_KEY }}
         run: pio run -e robot
 
       - name: Package firmware
