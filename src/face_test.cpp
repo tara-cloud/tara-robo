@@ -1,13 +1,18 @@
-// Face test — SH1106 128x64 OLED via U8g2 SW_I2C (SDA=21, SCL=22)
+// Face test — ST7735 128x160 V1.1 via SPI (SCK=18, MOSI=23, CS=5, DC=2, RST=4)
 // pio run -e test-face -t upload
 //
 // Touch GPIO32 to cycle: IDLE → HAPPY → SAD → ANGRY → LOVE → IDLE
 
 #include <Arduino.h>
-#include <U8g2lib.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include <SPI.h>
 
-static U8G2_SH1106_128X64_NONAME_F_SW_I2C
-    u8g2(U8G2_R0, /*scl*/22, /*sda*/21, U8X8_PIN_NONE);
+#define TFT_CS  5
+#define TFT_DC  2
+#define TFT_RST 4
+
+static Adafruit_ST7735 tft(TFT_CS, TFT_DC, TFT_RST);
 
 // ─── Touch ────────────────────────────────────────────────────────────────────
 static const int TOUCH_PIN = 32;
@@ -29,71 +34,51 @@ static unsigned long lastBlink = 0;
 // ─── Drawing ──────────────────────────────────────────────────────────────────
 
 void drawEye(int x, int y, int w, int h) {
-    u8g2.drawRBox(x, y, w, h, 6);
+    tft.fillRoundRect(x, y, w, h, 6, ST77XX_WHITE);
 }
 
 void drawIdleFace() {
-    u8g2.clearBuffer();
-    u8g2.setDrawColor(1);
+    tft.fillScreen(ST77XX_BLACK);
     drawEye(14 + eyeOffsetX, 22 + eyeOffsetY, 40, 20);
     drawEye(74 + eyeOffsetX, 22 + eyeOffsetY, 40, 20);
-    u8g2.sendBuffer();
 }
 
 void drawHappyFace() {
-    u8g2.clearBuffer();
-    u8g2.setDrawColor(1);
-    // Arched happy eyes — fill roundrect then mask bottom half
+    tft.fillScreen(ST77XX_BLACK);
     for (int side : {14, 74}) {
-        u8g2.drawRBox(side, 22, 40, 20, 10);
-        u8g2.setDrawColor(0);
-        u8g2.drawBox(side, 32, 40, 11);  // mask bottom
-        u8g2.setDrawColor(1);
+        tft.fillRoundRect(side, 22, 40, 20, 10, ST77XX_WHITE);
+        tft.fillRect(side, 32, 40, 11, ST77XX_BLACK);
     }
-    u8g2.sendBuffer();
 }
 
 void drawSadFace() {
-    u8g2.clearBuffer();
-    u8g2.setDrawColor(1);
-    // Drooping eyes — fill roundrect then mask top half, flip
+    tft.fillScreen(ST77XX_BLACK);
     for (int side : {14, 74}) {
-        u8g2.drawRBox(side, 22, 40, 20, 10);
-        u8g2.setDrawColor(0);
-        u8g2.drawBox(side, 22, 40, 11);  // mask top
-        u8g2.setDrawColor(1);
+        tft.fillRoundRect(side, 22, 40, 20, 10, ST77XX_WHITE);
+        tft.fillRect(side, 22, 40, 11, ST77XX_BLACK);
     }
-    u8g2.sendBuffer();
 }
 
 void drawAngryFace() {
-    u8g2.clearBuffer();
-    u8g2.setDrawColor(1);
-    // Rectangle eyes with angry inner brow cut
+    tft.fillScreen(ST77XX_BLACK);
     for (int side : {14, 74}) {
-        u8g2.drawRBox(side, 22, 40, 20, 4);
-        u8g2.setDrawColor(0);
+        tft.fillRoundRect(side, 22, 40, 20, 4, ST77XX_WHITE);
         if (side == 14)
-            u8g2.drawTriangle(side, 22, side + 40, 22, side + 40, 32); // left eye angry
+            tft.fillTriangle(side, 22, side + 40, 22, side + 40, 32, ST77XX_BLACK);
         else
-            u8g2.drawTriangle(side, 22, side + 40, 22, side, 32);       // right eye angry
-        u8g2.setDrawColor(1);
+            tft.fillTriangle(side, 22, side + 40, 22, side, 32, ST77XX_BLACK);
     }
-    u8g2.sendBuffer();
 }
 
 void drawLoveFace() {
-    u8g2.clearBuffer();
-    u8g2.setDrawColor(1);
-    // Two hearts
+    tft.fillScreen(ST77XX_BLACK);
     auto heart = [](int cx, int cy) {
-        u8g2.drawDisc(cx - 5, cy - 4, 5);
-        u8g2.drawDisc(cx + 5, cy - 4, 5);
-        u8g2.drawTriangle(cx - 10, cy - 2, cx + 10, cy - 2, cx, cy + 10);
+        tft.fillCircle(cx - 5, cy - 4, 5, ST77XX_RED);
+        tft.fillCircle(cx + 5, cy - 4, 5, ST77XX_RED);
+        tft.fillTriangle(cx - 10, cy - 2, cx + 10, cy - 2, cx, cy + 10, ST77XX_RED);
     };
     heart(34, 32);
     heart(94, 32);
-    u8g2.sendBuffer();
 }
 
 void showFace(Face f) {
@@ -121,14 +106,11 @@ void blinkTick() {
         if (e < 350) {
             float t   = (float)e / 350.0f;
             int lidH  = (int)(t * t * 21);
-            u8g2.clearBuffer(); u8g2.setDrawColor(1);
+            tft.fillScreen(ST77XX_BLACK);
             for (int side : {14, 74}) {
-                u8g2.drawRBox(side + eyeOffsetX, 22 + eyeOffsetY, 40, 20, 6);
-                u8g2.setDrawColor(0);
-                u8g2.drawBox(side + eyeOffsetX, 22 + eyeOffsetY, 40, min(lidH, 15));
-                u8g2.setDrawColor(1);
+                tft.fillRoundRect(side + eyeOffsetX, 22 + eyeOffsetY, 40, 20, 6, ST77XX_WHITE);
+                tft.fillRect(side + eyeOffsetX, 22 + eyeOffsetY, 40, min(lidH, 15), ST77XX_BLACK);
             }
-            u8g2.sendBuffer();
         } else {
             blinkActive = false;
             drawIdleFace();
@@ -160,10 +142,11 @@ void driftTick() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("=== face_test v4 — SH1106 OLED, touch GPIO32 to cycle ===");
+    Serial.println("=== face_test — ST7735 128x160, touch GPIO32 to cycle ===");
 
-    u8g2.begin();
-    u8g2.setContrast(200);
+    tft.initR(INITR_BLACKTAB);
+    tft.setRotation(1);
+    tft.fillScreen(ST77XX_BLACK);
 
     int sum = 0;
     for (int i = 0; i < 20; i++) { sum += touchRead(TOUCH_PIN); delay(10); }
@@ -174,7 +157,6 @@ void setup() {
 }
 
 void loop() {
-    // Touch — cycle face
     if (isTouched() && millis() - _lastTouch > 400) {
         _lastTouch  = millis();
         currentFace = (Face)((currentFace + 1) % FACE_COUNT);
@@ -182,7 +164,6 @@ void loop() {
         Serial.printf("Face: %d\n", currentFace);
     }
 
-    // Idle animations only on idle face
     if (currentFace == IDLE) {
         driftTick();
         blinkTick();

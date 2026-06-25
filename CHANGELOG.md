@@ -1,5 +1,20 @@
 # Changelog — tara-robo
 
+## [1.9.0] — 2026-06-25
+
+### Changed
+
+- Display migrated from SH1106 128×64 OLED (I2C) to ST7735 128×160 V1.1 TFT (SPI)
+  - Pins: SCK=18, MOSI=23, CS=5, DC=2, RST=4
+  - `device.cpp`: replaced U8g2 driver with Adafruit ST7735;
+    all draw commands, boot screen, and face rendering ported
+  - `face_test.cpp`: rewritten for ST7735; love face renders in red
+- `platformio.ini`: replaced `U8g2` + `Adafruit SSD1306` with
+  `Adafruit ST7735 and ST7789 Library`; removed `test-oled` env
+- All `tara-pi.local` references updated to `pi-nest.local`
+
+---
+
 ## [1.8.5] — 2026-06-25
 
 ### Fixed
@@ -35,7 +50,7 @@
 
 ### Changed
 
-- Pocket lib dependency URLs updated to use `tara-pi.local` hostname instead of hardcoded IP
+- Pocket lib dependency URLs updated to use `pi-nest.local` hostname instead of hardcoded IP
 - Pocket lib dependency URLs no longer require API token (public download enabled)
 
 ---
