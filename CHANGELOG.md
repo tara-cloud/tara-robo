@@ -1,5 +1,14 @@
 # Changelog — tara-robo
 
+## [1.8.5] — 2026-06-25
+
+### Fixed
+
+- `release.yml`: replace hardcoded Pocket host with `POCKET_BASE_URL` org secret
+- `release.yml`: change upload method from `POST` to `PUT` (fixes HTTP 405)
+
+---
+
 ## [1.8.4] — 2026-06-25
 
 ### Fixed

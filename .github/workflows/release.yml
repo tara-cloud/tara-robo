@@ -71,7 +71,7 @@ jobs:
         run: |
           VERSION=${{ needs.release.outputs.version }}
           FIRMWARE="tara-robo-${VERSION}.bin"
-          curl -f -X POST \
-            "http://tara-pi.local:30600/api/files/tara-robo/tara-robo/${VERSION}/${FIRMWARE}" \
+          curl -f -X PUT \
+            "${{ secrets.POCKET_BASE_URL }}/api/files/tara-robo/tara-robo/${VERSION}/${FIRMWARE}" \
             -H "Authorization: Bearer ${{ secrets.POCKET_API_KEY }}" \
             -F "file=@${FIRMWARE}"
