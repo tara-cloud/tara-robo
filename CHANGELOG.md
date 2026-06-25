@@ -1,5 +1,14 @@
 # Changelog — tara-robo
 
+## [1.9.1] — 2026-06-25
+
+### Changed
+
+- `src/`: removed `face_test.cpp`, `factory_reset.cpp`, `touch_test.cpp` — only `main.cpp` and `device.cpp` remain
+- `platformio.ini`: removed `factory-reset`, `test-touch`, `test-face`, `expressions-demo` build envs and `build_src_filter` exclusion list
+
+---
+
 ## [1.9.0] — 2026-06-25
 
 ### Changed
