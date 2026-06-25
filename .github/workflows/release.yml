@@ -71,7 +71,7 @@ jobs:
           VERSION=${{ needs.release.outputs.version }}
           FIRMWARE="tara-robo-${VERSION}.bin"
           curl -f -X POST \
-            "${{ secrets.POCKET_BASE_URL }}/api/repos/tara-robo/artifacts" \
+            "${{ secrets.POCKET_BASE_URL }}/api/repos/electro-firmware/artifacts" \
             -H "x-pocket-token: ${{ secrets.POCKET_API_KEY }}" \
             -F "file=@${FIRMWARE}" \
             -F "name=tara-robo" \
