@@ -24,6 +24,9 @@ void setup() {
     log4c_set("device", DEVICE_NAME);
     log4c_set("firmwareVersion", FW_VERSION);
 
+    // Init display first so tlog() can draw to screen
+    setupDeviceHardware();
+
     tlog(String(DEVICE_NAME) + " v" + FW_VERSION);
 
     // Derive robotId from MAC
@@ -35,9 +38,6 @@ void setup() {
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     robotId = String(macStr);
     tlog("Robot ID: " + robotId);
-
-    setupDeviceHardware();   // also calls face_register(emo_face_renderer(...))
-    tlog("Boot v" FW_VERSION);
 
     // ─── WiFi provisioning ───────────────────────────────────────────────────
     wifi4h_set_device_id(robotId);
