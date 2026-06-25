@@ -1,5 +1,20 @@
 # Changelog — tara-robo
 
+## [1.9.2] — 2026-06-25
+
+### Fixed
+
+- `main.cpp`: moved `registerRobot()` before `ota4h_init` and `config4h_init`
+  so `projectId` is resolved before MQTT clients subscribe — fixes stuck
+  `STATE_WAITING_CONFIG` on first boot
+- `device.cpp`: added `ST7735Display` adapter and `TaraFace` instance;
+  `taraFace.begin()` now called in `setupDeviceHardware()` — fixes blank
+  screen after registration (face renderer was never registered)
+- `lib/ST7735Display`: new local adapter implementing `IDisplay` for
+  Adafruit ST7735, bridging tara-face to the TFT driver
+
+---
+
 ## [1.9.1] — 2026-06-25
 
 ### Changed

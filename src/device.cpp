@@ -11,6 +11,7 @@
 #include <reg4h.h>
 #include <face.h>
 #include <tara_face.h>
+#include <ST7735Display.h>
 #include <touch_me.h>
 
 // ─── Display ──────────────────────────────────────────────────────────────────
@@ -18,7 +19,9 @@ static const int TFT_CS  = 5;
 static const int TFT_DC  = 2;
 static const int TFT_RST = 4;
 
-static Adafruit_ST7735 tft(TFT_CS, TFT_DC, TFT_RST);
+static Adafruit_ST7735  tft(TFT_CS, TFT_DC, TFT_RST);
+static ST7735Display    displayAdapter(&tft);
+static TaraFace         taraFace(&displayAdapter);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 static int  displayBrightness = 128;
@@ -131,6 +134,8 @@ void setupDeviceHardware() {
     tft.setRotation(1);
     tft.fillScreen(ST77XX_BLACK);
     redrawBootScreen();
+
+    taraFace.begin();
 
     LINFO("Hardware ready — ST7735 128x160");
 }
