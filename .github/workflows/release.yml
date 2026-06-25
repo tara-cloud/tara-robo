@@ -47,7 +47,6 @@ jobs:
     name: Build and publish firmware
     runs-on: self-hosted
     needs: release
-    if: needs.release.outputs.skipped != 'true'
 
     steps:
       - uses: actions/checkout@v4
