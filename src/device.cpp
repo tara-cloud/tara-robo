@@ -1,26 +1,24 @@
 // Tara Robot — device logic
-// Display: SH1106 128x64 via U8g2 SW_I2C (SDA=21, SCL=22)
+// Display: ST7735 128x160 V1.1 via SPI (SCK=18, MOSI=23, CS=5, DC=2, RST=4)
 // Faces dispatched via face lib — tara-face provides RoboEyes-style rendering.
 
 #include "TaraCore.h"
 #include <ArduinoJson.h>
-#include <U8g2lib.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include <SPI.h>
 #include <config4h.h>
 #include <reg4h.h>
 #include <face.h>
 #include <tara_face.h>
-#include <U8g2Display.h>
 #include <touch_me.h>
 
 // ─── Display ──────────────────────────────────────────────────────────────────
-static const int I2C_SCL = 22;
-static const int I2C_SDA = 21;
+static const int TFT_CS  = 5;
+static const int TFT_DC  = 2;
+static const int TFT_RST = 4;
 
-static U8G2_SH1106_128X64_NONAME_F_SW_I2C
-    u8g2(U8G2_R0, I2C_SCL, I2C_SDA, U8X8_PIN_NONE);
-
-static U8g2Display<U8G2_SH1106_128X64_NONAME_F_SW_I2C> displayAdapter(&u8g2);
-static TaraFace taraFace(&displayAdapter);
+static Adafruit_ST7735 tft(TFT_CS, TFT_DC, TFT_RST);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 static int  displayBrightness = 128;
@@ -44,29 +42,32 @@ static const int STATE_COUNT = sizeof(STATE_NAMES) / sizeof(STATE_NAMES[0]);
 
 static void execCmd(const JsonObject& cmd) {
     const char* t = cmd["t"] | "";
+    int x = cmd["x"] | 0, y = cmd["y"] | 0;
+    int w = cmd["w"] | 0, h = cmd["h"] | 0;
+    int r = cmd["r"] | 0;
 
-    if      (strcmp(t, "disc")   == 0) u8g2.drawDisc  (cmd["x"], cmd["y"], cmd["r"]);
-    else if (strcmp(t, "circle") == 0) u8g2.drawCircle(cmd["x"], cmd["y"], cmd["r"]);
-    else if (strcmp(t, "hline")  == 0) u8g2.drawHLine (cmd["x"], cmd["y"], cmd["w"]);
-    else if (strcmp(t, "vline")  == 0) u8g2.drawVLine (cmd["x"], cmd["y"], cmd["h"]);
-    else if (strcmp(t, "pixel")  == 0) u8g2.drawPixel (cmd["x"], cmd["y"]);
-    else if (strcmp(t, "rbox")   == 0) u8g2.drawRBox  (cmd["x"], cmd["y"], cmd["w"], cmd["h"], cmd["r"] | 0);
-    else if (strcmp(t, "rect")   == 0) u8g2.drawFrame (cmd["x"], cmd["y"], cmd["w"], cmd["h"]);
+    if      (strcmp(t, "disc")   == 0) tft.fillCircle(x, y, r, ST77XX_WHITE);
+    else if (strcmp(t, "circle") == 0) tft.drawCircle(x, y, r, ST77XX_WHITE);
+    else if (strcmp(t, "hline")  == 0) tft.drawFastHLine(x, y, w, ST77XX_WHITE);
+    else if (strcmp(t, "vline")  == 0) tft.drawFastVLine(x, y, h, ST77XX_WHITE);
+    else if (strcmp(t, "pixel")  == 0) tft.drawPixel(x, y, ST77XX_WHITE);
+    else if (strcmp(t, "rbox")   == 0) tft.fillRoundRect(x, y, w, h, r, ST77XX_WHITE);
+    else if (strcmp(t, "rect")   == 0) tft.drawRoundRect(x, y, w, h, r, ST77XX_WHITE);
     else if (strcmp(t, "text")   == 0) {
         const char* font = cmd["font"] | "small";
-        if (strcmp(font, "large") == 0)  u8g2.setFont(u8g2_font_ncenB14_tr);
-        else                             u8g2.setFont(u8g2_font_6x10_tf);
-        u8g2.drawStr(cmd["x"], cmd["y"], cmd["s"] | "");
+        tft.setTextColor(ST77XX_WHITE);
+        tft.setTextSize(strcmp(font, "large") == 0 ? 2 : 1);
+        tft.setCursor(x, y);
+        tft.print(cmd["s"] | "");
     }
 }
 
 static void renderCmds(const String& json) {
     JsonDocument doc;
     if (deserializeJson(doc, json) != DeserializationError::Ok) return;
-    u8g2.clearBuffer();
+    tft.fillScreen(ST77XX_BLACK);
     JsonArray cmds = doc["cmds"].as<JsonArray>();
     for (JsonObject cmd : cmds) execCmd(cmd);
-    u8g2.sendBuffer();
 }
 
 // ─── Boot log ─────────────────────────────────────────────────────────────────
@@ -78,18 +79,19 @@ static String logLines[LOG_MAX];
 static int    logCount = 0;
 
 static void redrawBootScreen() {
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_ncenB14_tr);
-    int logoW = u8g2.getStrWidth("TARA");
-    u8g2.drawStr((128 - logoW) / 2, 15, "TARA");
-    u8g2.drawHLine(0, 18, 128);
-    u8g2.setFont(u8g2_font_6x10_tf);
+    tft.fillScreen(ST77XX_BLACK);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setTextSize(2);
+    tft.setCursor((128 - 48) / 2, 4);
+    tft.print("TARA");
+    tft.drawFastHLine(0, 20, 128, ST77XX_WHITE);
+    tft.setTextSize(1);
     int start = (logCount > LOG_MAX) ? logCount - LOG_MAX : 0;
     for (int i = start; i < logCount; i++) {
         int row = i - start;
-        u8g2.drawStr(0, LOG_Y_START + row * LOG_LINE_H + 8, logLines[i % LOG_MAX].c_str());
+        tft.setCursor(0, LOG_Y_START + row * LOG_LINE_H);
+        tft.print(logLines[i % LOG_MAX]);
     }
-    u8g2.sendBuffer();
 }
 
 void tlog(const String& msg) {
@@ -98,14 +100,6 @@ void tlog(const String& msg) {
     logCount++;
     redrawBootScreen();
 }
-
-// ─── Touch detection ──────────────────────────────────────────────────────────
-// Pin: GPIO18 (capacitive touch — reads LOW when touched on ESP32)
-// Events logged to LINFO:
-//   single tap  — press < 400 ms, no second press within 350 ms
-//   double tap  — two presses within 350 ms of each other
-//   long press  — held >= 600 ms (fires once on release)
-//   padding     — held >= 600 ms, then fires every 300 ms while still held
 
 // ─── Touch ────────────────────────────────────────────────────────────────────
 static TouchMe touch(32, true);
@@ -122,32 +116,23 @@ void updateTouch() {
     touch.update();
 }
 
-
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 void setupDeviceHardware() {
-    uint8_t i2cPins[] = {(uint8_t)I2C_SDA, (uint8_t)I2C_SCL};
-    reg4h_add_component("", "", "I2C", i2cPins, 2);
-
-    for (int i = 0; i < reg4h_component_count(); i++) {
-        const Reg4hComponent* c = reg4h_get_component(i);
-        if (c->protocol == "I2C")
-            tlog(c->name + "@0x" + String(c->address, HEX));
-    }
+    uint8_t spiPins[] = {18, 23, (uint8_t)TFT_CS, (uint8_t)TFT_DC, (uint8_t)TFT_RST};
+    reg4h_add_component("ST7735", "display", "SPI", spiPins, 5);
 
     uint8_t touchPins[] = {32};
     reg4h_add_component("TouchSensor", "input", "GPIO", touchPins, 1);
 
-    touchBegin();          // init touch-me library with auto-calibration
+    touchBegin();
 
-    u8g2.begin();
-    u8g2.setContrast((uint8_t)displayBrightness);
+    tft.initR(INITR_BLACKTAB);
+    tft.setRotation(1);
+    tft.fillScreen(ST77XX_BLACK);
     redrawBootScreen();
 
-    taraFace.begin();   // registers FACE_IDLE with face.h dispatcher
-
-    LINFO("Hardware ready — SH1106 128x64");
+    LINFO("Hardware ready — ST7735 128x160");
 }
 
 void setState(RobotState s) {
@@ -158,7 +143,6 @@ void applyRobotConfig() {
     displayBrightness = config4h_get("displayBrightness").asInt(displayBrightness);
     volume            = config4h_get("volume").asInt(volume);
     idleTimeout       = config4h_get("idleTimeout").asInt(idleTimeout);
-    u8g2.setContrast((uint8_t)displayBrightness);
 
     JsonVariant faces = config4h_get("faces").raw();
     if (faces.is<JsonObject>()) {
