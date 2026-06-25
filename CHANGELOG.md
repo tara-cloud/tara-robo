@@ -1,5 +1,14 @@
 # Changelog — tara-robo
 
+## [1.9.3] — 2026-06-25
+
+### Fixed
+
+- `platformio.ini`: `DEVICE_TYPE` corrected to `tara-robo` (was `robot`)
+- `platformio.ini`: `FW_VERSION` default corrected to `1.8.5` (was `3.5.0`)
+
+---
+
 ## [1.9.2] — 2026-06-25
 
 ### Fixed
