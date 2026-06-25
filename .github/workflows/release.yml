@@ -70,7 +70,9 @@ jobs:
         run: |
           VERSION=${{ needs.release.outputs.version }}
           FIRMWARE="tara-robo-${VERSION}.bin"
-          curl -f -X PUT \
-            "${{ secrets.POCKET_BASE_URL }}/api/files/tara-robo/tara-robo/${VERSION}/${FIRMWARE}" \
-            -H "Authorization: Bearer ${{ secrets.POCKET_API_KEY }}" \
-            -F "file=@${FIRMWARE}"
+          curl -f -X POST \
+            "${{ secrets.POCKET_BASE_URL }}/api/repos/tara-robo/artifacts" \
+            -H "x-pocket-token: ${{ secrets.POCKET_API_KEY }}" \
+            -F "file=@${FIRMWARE}" \
+            -F "name=tara-robo" \
+            -F "version=${VERSION}"
