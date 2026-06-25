@@ -68,6 +68,9 @@ void setup() {
     setState(STATE_CONNECTING);
     wifi4h_connect();
 
+    // Register first so projectId is resolved before MQTT clients subscribe
+    registerRobot();
+
     // ─── OTA ─────────────────────────────────────────────────────────────────
     ota4h_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
     ota4h_on_state([](const String& state, int pct) {
@@ -83,8 +86,6 @@ void setup() {
         tlog("Config: applied");
     });
     config4h_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
-
-    registerRobot();
 
     // ─── Health check ─────────────────────────────────────────────────────────
     health_check_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME), String(FW_VERSION));
