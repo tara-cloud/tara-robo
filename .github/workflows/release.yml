@@ -70,6 +70,14 @@ jobs:
         run: |
           VERSION=${{ needs.release.outputs.version }}
           FIRMWARE="tara-robo-${VERSION}.bin"
+          # Create repo if it doesn't exist
+          curl -X POST \
+            "${{ secrets.POCKET_BASE_URL }}/api/repos" \
+            -H "x-pocket-token: ${{ secrets.POCKET_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"tara-robo","description":"Tara robot firmware","repoType":"generic","isPublic":true}' \
+            || true
+          # Upload firmware
           curl -f -X POST \
             "${{ secrets.POCKET_BASE_URL }}/api/repos/tara-robo/artifacts" \
             -H "x-pocket-token: ${{ secrets.POCKET_API_KEY }}" \
