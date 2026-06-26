@@ -3,6 +3,7 @@
 // Faces dispatched via face lib — tara-face provides RoboEyes-style rendering.
 
 #include "TaraCore.h"
+#include "Eye.h"
 #include <ArduinoJson.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
@@ -102,6 +103,15 @@ void tlog(const String& msg) {
     logLines[logCount % LOG_MAX] = msg;
     logCount++;
     redrawBootScreen();
+}
+
+// ─── Eye sprite renderer ──────────────────────────────────────────────────────
+// Eye_map is RGB565 160×120. Screen in landscape (setRotation(1)) is 160×128.
+// Centre vertically: y = (128-120)/2 = 4px.
+
+void renderEye() {
+    tft.drawRGBBitmap(0, (tft.height() - 120) / 2,
+                      (const uint16_t*)Eye_map, 160, 120);
 }
 
 // ─── Touch ────────────────────────────────────────────────────────────────────

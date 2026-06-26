@@ -107,5 +107,5 @@ void loop() {
     health_check_loop();
     updateTouch();
 
-    renderFace(toFaceState(currentState));
+    renderEye();
 }
