@@ -52,8 +52,16 @@ void registerRobot() {
     String body;
     serializeJson(doc, body);
     LINFO( "Register: POST %s/device/register", serverUrl.c_str());
-    http.setTimeout(10000);
-    int code = http.POST(body);
+    http.setTimeout(30000);
+    int code = -1;
+    for (int attempt = 1; attempt <= 3 && code < 0; attempt++) {
+        if (attempt > 1) {
+            LWARN("Register: retry %d/3", attempt);
+            tlog("Register: retry " + String(attempt));
+            delay(3000);
+        }
+        code = http.POST(body);
+    }
 
     if (code == 200 || code == 201) {
         String resp = http.getString();
