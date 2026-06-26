@@ -106,5 +106,7 @@ void loop() {
     health_check_loop();
     updateTouch();
 
-    renderEye();
+    if (currentState >= STATE_IDLE) {
+        renderEye();
+    }
 }
