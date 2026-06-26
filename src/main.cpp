@@ -17,6 +17,10 @@ RobotState currentState = STATE_BOOTING;
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
+    // Drive backlight HIGH immediately — prevents float before setupDeviceHardware()
+    pinMode(16, OUTPUT);
+    digitalWrite(16, HIGH);
+
     Serial.begin(115200);
 
     log4c_init();
