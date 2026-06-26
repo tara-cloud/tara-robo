@@ -1,5 +1,22 @@
 # Changelog — tara-robo
 
+## [2.0.0] — 2026-06-26
+
+### Changed
+
+- Display driver migrated from Adafruit ST7735 to **TFT_eSPI** + `TFT_eSprite`
+- `renderFace(toFaceState(currentState))` replaced with `renderEye()` —
+  renders a raw RGB565 bitmap sprite directly to the TFT
+- `src/Eye.cpp` + `src/Eye.h`: static 160×120 RGB565 eye image data
+- `include/User_Setup.h`: TFT_eSPI pin config for ST7735 V1.1
+  (SCK=18, MOSI=23, CS=5, DC=2, RST=4)
+- `platformio.ini`: swapped `Adafruit ST7735 and ST7789 Library` →
+  `bodmer/TFT_eSPI@^2.5.43`
+- `TaraCore.h`: added `renderEye()` declaration; removed face lib deps
+- `main.cpp`: removed `face.h` include; loop calls `renderEye()`
+
+---
+
 ## [1.9.3] — 2026-06-25
 
 ### Fixed
