@@ -103,6 +103,10 @@ void setBacklight(bool on) {
 }
 
 void setupDeviceHardware() {
+    // Drive BL HIGH first — prevents float during init
+    pinMode(TFT_BL, OUTPUT);
+    digitalWrite(TFT_BL, HIGH);
+
     uint8_t spiPins[] = {18, 23, (uint8_t)TFT_CS, (uint8_t)TFT_DC, (uint8_t)TFT_RST};
     reg4h_add_component("ST7735", "display", "SPI", spiPins, 5);
 
@@ -110,9 +114,6 @@ void setupDeviceHardware() {
     reg4h_add_component("TouchSensor", "input", "GPIO", touchPins, 1);
 
     touchBegin();
-
-    pinMode(TFT_BL, OUTPUT);
-    digitalWrite(TFT_BL, HIGH);
 
     tft.initR(INITR_BLACKTAB);
     tft.setRotation(1);

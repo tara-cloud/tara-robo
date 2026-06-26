@@ -1,5 +1,16 @@
 # Changelog — tara-robo
 
+## [2.2.1] — 2026-06-26
+
+### Fixed
+
+- `src/main.cpp`: drive GPIO16 `HIGH` as first line of `setup()` — prevents
+  BL floating low during serial/log init before `setupDeviceHardware()` runs
+- `src/device.cpp`: moved `pinMode(TFT_BL, OUTPUT)` + `digitalWrite HIGH`
+  to top of `setupDeviceHardware()`, before component registration and touch init
+
+---
+
 ## [2.2.0] — 2026-06-26
 
 ### Added
