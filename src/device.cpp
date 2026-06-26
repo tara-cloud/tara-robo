@@ -3,15 +3,20 @@
 
 #include "TaraCore.h"
 #include <ArduinoJson.h>
-#include <TFT_eSPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include <SPI.h>
 #include <config4h.h>
 #include <reg4h.h>
 #include <touch_me.h>
 #include "Eye.h"
 
 // ─── Display ──────────────────────────────────────────────────────────────────
-static TFT_eSPI  tft;
-static TFT_eSprite eyeSprite(&tft);
+static const int TFT_CS  = 5;
+static const int TFT_DC  = 2;
+static const int TFT_RST = 4;
+
+static Adafruit_ST7735 tft(TFT_CS, TFT_DC, TFT_RST);
 
 // Eye image dims
 static const int EYE_W = 160;
@@ -40,8 +45,8 @@ static const int STATE_COUNT = sizeof(STATE_NAMES) / sizeof(STATE_NAMES[0]);
 // Centre vertically: y offset = (128 - 120) / 2 = 4.
 
 void renderEye() {
-    eyeSprite.pushImage(0, 0, EYE_W, EYE_H, (uint16_t*)Eye_map);
-    eyeSprite.pushSprite(0, (tft.height() - EYE_H) / 2);
+    tft.drawRGBBitmap(0, (tft.height() - EYE_H) / 2,
+                      (const uint16_t*)Eye_map, EYE_W, EYE_H);
 }
 
 // ─── Boot log ─────────────────────────────────────────────────────────────────
@@ -53,12 +58,12 @@ static String logLines[LOG_MAX];
 static int    logCount = 0;
 
 static void redrawBootScreen() {
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextColor(TFT_WHITE);
+    tft.fillScreen(ST77XX_BLACK);
+    tft.setTextColor(ST77XX_WHITE);
     tft.setTextSize(2);
-    tft.setCursor((tft.width() - 48) / 2, 4);
+    tft.setCursor((128 - 48) / 2, 4);
     tft.print("TARA");
-    tft.drawFastHLine(0, 20, tft.width(), TFT_WHITE);
+    tft.drawFastHLine(0, 20, 128, ST77XX_WHITE);
     tft.setTextSize(1);
     int start = (logCount > LOG_MAX) ? logCount - LOG_MAX : 0;
     for (int i = start; i < logCount; i++) {
@@ -93,7 +98,7 @@ void updateTouch() {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 void setupDeviceHardware() {
-    uint8_t spiPins[] = {18, 23, 5, 2, 4};
+    uint8_t spiPins[] = {18, 23, (uint8_t)TFT_CS, (uint8_t)TFT_DC, (uint8_t)TFT_RST};
     reg4h_add_component("ST7735", "display", "SPI", spiPins, 5);
 
     uint8_t touchPins[] = {32};
@@ -101,14 +106,9 @@ void setupDeviceHardware() {
 
     touchBegin();
 
-    tft.init();
-    tft.setRotation(1);   // landscape: 160×128
-    tft.fillScreen(TFT_BLACK);
-
-    // Allocate sprite for eye image
-    eyeSprite.createSprite(EYE_W, EYE_H);
-    eyeSprite.setColorDepth(16);
-
+    tft.initR(INITR_BLACKTAB);
+    tft.setRotation(1);
+    tft.fillScreen(ST77XX_BLACK);
     redrawBootScreen();
 
     LINFO("Hardware ready — ST7735 128x160");

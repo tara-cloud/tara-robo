@@ -1,5 +1,20 @@
 # Changelog — tara-robo
 
+## [2.1.0] — 2026-06-26
+
+### Changed
+
+- `src/device.cpp`: reverted display driver from TFT_eSPI back to
+  **Adafruit ST7735** (working); `renderEye()` now uses
+  `tft.drawRGBBitmap()` — no sprite allocator needed
+- `src/Eye.cpp`: populated with full 38400-byte RGB565 pixel data
+  extracted from `lib/face/Eye.c`
+- `platformio.ini`: swapped `bodmer/TFT_eSPI` back to
+  `adafruit/Adafruit ST7735 and ST7789 Library@^1.10.4`
+- Removed `include/User_Setup.h` (TFT_eSPI pin config, no longer needed)
+
+---
+
 ## [2.0.1] — 2026-06-26
 
 ### Changed
