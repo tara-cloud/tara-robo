@@ -6,6 +6,7 @@
 #include <config4h.h>
 #include <reg4h.h>
 #include <health_check.h>
+#include <face.h>
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
@@ -106,5 +107,5 @@ void loop() {
     health_check_loop();
     updateTouch();
 
-    renderEye();
+    renderFace(toFaceState(currentState));
 }

@@ -47,4 +47,3 @@ void handleDisplay(const String& json);
 void handleEmotion(const String& json);
 void handleSpeech(const String& json);
 void setState(RobotState s);
-void renderEye();
