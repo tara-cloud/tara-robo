@@ -1,5 +1,14 @@
 # Changelog — tara-robo
 
+## [2.0.1] — 2026-06-26
+
+### Changed
+
+- `.gitignore`: added `lib/face/` — raw LVGL sprite source no longer tracked
+  (data is compiled into `src/Eye.cpp`)
+
+---
+
 ## [2.0.0] — 2026-06-26
 
 ### Changed
