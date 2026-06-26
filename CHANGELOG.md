@@ -1,5 +1,15 @@
 # Changelog — tara-robo
 
+## [2.1.2] — 2026-06-26
+
+### Fixed
+
+- `TaraCore.cpp`: increased registration HTTP timeout from 10s to 30s
+- `TaraCore.cpp`: retry registration up to 3 times with 3s delay between
+  attempts — fixes `code=-11` (read timeout) on cold-start k3s pod
+
+---
+
 ## [2.1.0] — 2026-06-26
 
 ### Changed
