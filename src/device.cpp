@@ -1,5 +1,5 @@
 // Tara Robot — device logic
-// Display: ST7735 128x160 V1.1 via SPI (SCK=18, MOSI=23, CS=5, DC=2, RST=4)
+// Display: ST7735 128x160 V1.1 via SPI (SCK=18, MOSI=23, CS=5, DC=2, RST=4, BL=16)
 
 #include "TaraCore.h"
 #include <ArduinoJson.h>
@@ -15,6 +15,7 @@
 static const int TFT_CS  = 5;
 static const int TFT_DC  = 2;
 static const int TFT_RST = 4;
+static const int TFT_BL  = 16;
 
 static Adafruit_ST7735 tft(TFT_CS, TFT_DC, TFT_RST);
 
@@ -97,6 +98,10 @@ void updateTouch() {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+void setBacklight(bool on) {
+    digitalWrite(TFT_BL, on ? HIGH : LOW);
+}
+
 void setupDeviceHardware() {
     uint8_t spiPins[] = {18, 23, (uint8_t)TFT_CS, (uint8_t)TFT_DC, (uint8_t)TFT_RST};
     reg4h_add_component("ST7735", "display", "SPI", spiPins, 5);
@@ -106,12 +111,15 @@ void setupDeviceHardware() {
 
     touchBegin();
 
+    pinMode(TFT_BL, OUTPUT);
+    digitalWrite(TFT_BL, HIGH);
+
     tft.initR(INITR_BLACKTAB);
     tft.setRotation(1);
     tft.fillScreen(ST77XX_BLACK);
     redrawBootScreen();
 
-    LINFO("Hardware ready — ST7735 128x160");
+    LINFO("Hardware ready — ST7735 128x160 BL=GPIO16");
 }
 
 void setState(RobotState s) {
