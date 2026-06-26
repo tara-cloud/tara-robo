@@ -1,5 +1,16 @@
 # Changelog — tara-robo
 
+## [2.2.0] — 2026-06-26
+
+### Added
+
+- `src/device.cpp`: backlight control via GPIO 16 (`TFT_BL = 16`)
+  - `pinMode(TFT_BL, OUTPUT)` + `digitalWrite(TFT_BL, HIGH)` in `setupDeviceHardware()`
+  - `setBacklight(bool on)` function for software on/off control
+- `TaraCore.h`: added `void setBacklight(bool on)` declaration
+
+---
+
 ## [2.1.0] — 2026-06-26
 
 ### Changed
