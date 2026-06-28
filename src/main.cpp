@@ -132,7 +132,18 @@ void setup() {
         delay(10);
     }
 
-    log4c_set("socket.enabled", "true");
+    // Forward log4c entries to server via socket
+    log4c_set_mqtt(String(DEVICE_NAME) + "/logs",
+        [](const char* /*topic*/, const char* payload) -> bool {
+            JsonDocument doc;
+            if (deserializeJson(doc, payload) != DeserializationError::Ok) return false;
+            doc["type"]            = "log";
+            doc["deviceId"]        = robotId;
+            doc["firmwareVersion"] = FW_VERSION;
+            socket4h_send("log", doc);
+            return true;
+        });
+
     LINFO("Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
     if (currentState < STATE_IDLE) setState(STATE_WAITING_CONFIG);
 }
