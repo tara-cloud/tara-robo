@@ -2,18 +2,20 @@
 #include <WiFi.h>
 #include "TaraCore.h"
 #include <wifi4h.h>
-#include <ota4h.h>
-#include <config4h.h>
 #include <reg4h.h>
-#include <health_check.h>
+#include <socket4h.h>
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
 String     serverUrl;
 String     projectId;
-String     mqttHost;
-uint16_t   mqttPort     = 1883;
-RobotState currentState = STATE_BOOTING;
+String     socketHost;
+uint16_t   socketPort    = 3001;
+RobotState currentState  = STATE_BOOTING;
+
+// ─── Heartbeat / health timing ───────────────────────────────────────────────
+static unsigned long _lastHeartbeat = 0;
+static unsigned long _lastHealth    = 0;
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
@@ -45,58 +47,65 @@ void setup() {
     // ─── WiFi provisioning ───────────────────────────────────────────────────
     wifi4h_set_device_id(robotId);
     wifi4h_set_namespace("tara-wifi");
-    wifi4h_add_field("ssid",        "string",   true);
-    wifi4h_add_field("password",    "password", false);
-    wifi4h_add_field("projectId",   "string",   true);
-    wifi4h_add_field("host",        "string",   true);
-    wifi4h_add_field("servicePort", "number",   false);
-    wifi4h_add_field("mqttPort",    "number",   false);
+    wifi4h_add_field("ssid",      "string",   true);
+    wifi4h_add_field("password",  "password", false);
+    wifi4h_add_field("projectId", "string",   true);
+    wifi4h_add_field("host",      "string",   true);
+    wifi4h_add_field("port",      "number",   false);
     wifi4h_on_event([](const String& ev, const String& detail) {
         tlog(ev + (detail.length() ? ": " + detail : ""));
     });
 
     wifi4h_load();
 
-    projectId        = wifi4h_get("projectId");
-    String host      = wifi4h_get("host");
-    uint16_t svcPort = (uint16_t)wifi4h_get("servicePort").toInt();
-    mqttPort         = (uint16_t)wifi4h_get("mqttPort").toInt();
-    if (svcPort  == 0) svcPort  = 30400;
-    if (mqttPort == 0) mqttPort = 1883;
-    if (host.length() > 0) {
-        serverUrl = "http://" + host + ":" + String(svcPort);
-        mqttHost  = host;
-    }
+    projectId  = wifi4h_get("projectId");
+    socketHost = wifi4h_get("host");
+    uint16_t p = (uint16_t)wifi4h_get("port").toInt();
+    if (p > 0) socketPort = p;
+    if (socketHost.length() > 0)
+        serverUrl = "http://" + socketHost + ":30400";
 
     setState(STATE_CONNECTING);
     wifi4h_connect();
 
-    // Register first so projectId is resolved before MQTT clients subscribe
+    // ─── TCP socket ──────────────────────────────────────────────────────────
+    tlog("Connecting socket...");
+    for (int i = 0; i < 5 && !socket4h_connected(); i++) {
+        if (socket4h_connect(socketHost, socketPort)) break;
+        delay(2000);
+    }
+
+    // Register device via socket
     registerRobot();
 
-    // ─── OTA ─────────────────────────────────────────────────────────────────
-    ota4h_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
-    ota4h_on_state([](const String& state, int pct) {
-        tlog("OTA: " + state + (pct >= 0 ? " " + String(pct) + "%" : ""));
-        if (state == "failed") setState(STATE_ERROR);
-        if (state == "ok")     setState(STATE_IDLE);
-    });
-
-    // ─── Config ──────────────────────────────────────────────────────────────
-    config4h_on_change([]() {
-        applyRobotConfig();
+    // ─── Socket message handlers ─────────────────────────────────────────────
+    socket4h_on_message("config", [](const JsonDocument& doc) {
+        // Extract projectId from config if server sends it
+        String pid = doc["projectId"] | String("");
+        if (pid.length() > 0) projectId = pid;
+        applySocketConfig(doc);
         setState(STATE_IDLE);
         tlog("Config: applied");
     });
-    config4h_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME));
+    socket4h_on_message("display", [](const JsonDocument& doc) {
+        String json; serializeJson(doc, json);
+        handleDisplay(json);
+    });
+    socket4h_on_message("emotion", [](const JsonDocument& doc) {
+        String json; serializeJson(doc, json);
+        handleEmotion(json);
+    });
+    socket4h_on_message("speech", [](const JsonDocument& doc) {
+        String json; serializeJson(doc, json);
+        handleSpeech(json);
+    });
+    socket4h_on_message("ota", [](const JsonDocument& doc) {
+        tlog("OTA: " + String(doc["version"] | "?"));
+        // OTA handling can be added here
+    });
 
-    // ─── Health check ─────────────────────────────────────────────────────────
-    health_check_init(mqttHost, mqttPort, projectId, String(DEVICE_NAME), String(FW_VERSION));
-
-    // Wire log4c MQTT appender — enable MQTT logging with device/project context
-    String logTopic = projectId + "/" + String(DEVICE_NAME) + "/logs";
-    log4c_set("mqtt.topic",   logTopic.c_str());
-    log4c_set("mqtt.enabled", "true");
+    // Wire log4c to forward logs via socket
+    log4c_set("socket.enabled", "true");
 
     LINFO("Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
     setState(STATE_WAITING_CONFIG);
@@ -105,10 +114,29 @@ void setup() {
 // ─── Loop ────────────────────────────────────────────────────────────────────
 void loop() {
     wifi4h_reconnect();
-    ota4h_loop();
-    config4h_loop();
-    health_check_loop();
+    socket4h_loop();
     updateTouch();
+
+    unsigned long now = millis();
+
+    // Heartbeat every 30s
+    if (now - _lastHeartbeat >= 30000) {
+        _lastHeartbeat = now;
+        JsonDocument doc;
+        doc["deviceId"] = robotId;
+        doc["ip"]       = WiFi.localIP().toString();
+        socket4h_send("heartbeat", doc);
+    }
+
+    // Health every 60s
+    if (now - _lastHealth >= 60000) {
+        _lastHealth = now;
+        JsonDocument doc;
+        doc["deviceId"]        = robotId;
+        doc["status"]          = "online";
+        doc["firmwareVersion"] = FW_VERSION;
+        socket4h_send("health", doc);
+    }
 
     if (currentState >= STATE_IDLE) {
         renderEye();
