@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
 #include "TaraCore.h"
 #include <wifi4h.h>
 #include <reg4h.h>
@@ -19,11 +21,12 @@ static unsigned long _lastHealth    = 0;
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
-    // Drive backlight HIGH immediately — prevents float before setupDeviceHardware()
+    Serial.begin(115200);
+    delay(100); // let serial settle before first output
+
+    // Drive backlight HIGH — after Serial so we don't lose boot messages
     pinMode(16, OUTPUT);
     digitalWrite(16, HIGH);
-
-    Serial.begin(115200);
 
     log4c_init();
     log4c_set("device", DEVICE_NAME);
@@ -80,7 +83,6 @@ void setup() {
 
     // ─── Socket message handlers ─────────────────────────────────────────────
     socket4h_on_message("config", [](const JsonDocument& doc) {
-        // Extract projectId from config if server sends it
         String pid = doc["projectId"] | String("");
         if (pid.length() > 0) projectId = pid;
         applySocketConfig(doc);
@@ -100,8 +102,32 @@ void setup() {
         handleSpeech(json);
     });
     socket4h_on_message("ota", [](const JsonDocument& doc) {
-        tlog("OTA: " + String(doc["version"] | "?"));
-        // OTA handling can be added here
+        String url     = doc["url"]     | String("");
+        String version = doc["version"] | String("?");
+        if (url.length() == 0) {
+            LERROR("OTA: no url in message");
+            return;
+        }
+        tlog("OTA: " + version);
+        LINFO("OTA: starting from %s", url.c_str());
+
+        WiFiClient client;
+        httpUpdate.setLedPin(LED_BUILTIN, LOW);
+        httpUpdate.onStart([]()    { tlog("OTA: downloading..."); });
+        httpUpdate.onProgress([](int cur, int total) {
+            static int last = -1;
+            int pct = (total > 0) ? (cur * 100 / total) : 0;
+            if (pct / 10 != last / 10) { last = pct; tlog("OTA: " + String(pct) + "%"); }
+        });
+        httpUpdate.onEnd([]()      { tlog("OTA: done — rebooting"); });
+        httpUpdate.onError([](int e){ tlog("OTA: error " + String(e)); });
+
+        t_httpUpdate_return ret = httpUpdate.update(client, url);
+        if (ret == HTTP_UPDATE_FAILED) {
+            LERROR("OTA failed: %s", httpUpdate.getLastErrorString().c_str());
+            tlog("OTA: FAILED");
+        }
+        // HTTP_UPDATE_OK triggers automatic reboot
     });
 
     // Wire log4c to forward logs via socket

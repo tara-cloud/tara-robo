@@ -1,5 +1,16 @@
 # Changelog — tara-robo
 
+## [3.0.1] — 2026-06-28
+
+### Fixed
+
+- `src/main.cpp`: `Serial.begin(115200)` moved to first line of `setup()`
+  with `delay(100)` so boot messages appear in serial monitor
+- `src/main.cpp`: OTA handler implemented using `HTTPUpdate` — downloads
+  firmware from `doc["url"]`, reports progress via `tlog()`, auto-reboots on success
+
+---
+
 ## [3.0.0] — 2026-06-28
 
 ### Changed
