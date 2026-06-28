@@ -112,7 +112,6 @@ void setup() {
         LINFO("OTA: starting from %s", url.c_str());
 
         WiFiClient client;
-        httpUpdate.setLedPin(LED_BUILTIN, LOW);
         httpUpdate.onStart([]()    { tlog("OTA: downloading..."); });
         httpUpdate.onProgress([](int cur, int total) {
             static int last = -1;
