@@ -6,7 +6,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include <SPI.h>
-#include <config4h.h>
 #include <reg4h.h>
 #include <touch_me.h>
 #include "Eye.h"
@@ -127,19 +126,19 @@ void setState(RobotState s) {
     currentState = s;
 }
 
-void applyRobotConfig() {
-    displayBrightness = config4h_get("displayBrightness").asInt(displayBrightness);
-    volume            = config4h_get("volume").asInt(volume);
-    idleTimeout       = config4h_get("idleTimeout").asInt(idleTimeout);
+void applySocketConfig(const JsonDocument& doc) {
+    displayBrightness = doc["displayBrightness"] | displayBrightness;
+    volume            = doc["volume"]            | volume;
+    idleTimeout       = doc["idleTimeout"]       | idleTimeout;
 
-    JsonVariant faces = config4h_get("faces").raw();
-    if (faces.is<JsonObject>()) {
+    JsonVariantConst faces = doc["faces"];
+    if (faces.is<JsonObjectConst>()) {
         for (int i = 0; i < STATE_COUNT; i++) {
             const char* name = STATE_NAMES[i];
             if (faces[name].is<const char*>())
                 cachedFaces[i] = faces[name].as<String>();
         }
-        LINFO("applyRobotConfig: face cache updated");
+        LINFO("applySocketConfig: face cache updated");
     }
 }
 

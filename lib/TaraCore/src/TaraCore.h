@@ -3,6 +3,8 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <log4c.h>
+#include <ArduinoJson.h>
+
 // ─── Robot states ─────────────────────────────────────────────────────────────
 enum RobotState {
     STATE_BOOTING,
@@ -18,21 +20,15 @@ enum RobotState {
     STATE_ERROR,
 };
 
-// ─── Timing ──────────────────────────────────────────────────────────────────
-static const unsigned long HEARTBEAT_INTERVAL = 30000; // 30 s
-static const unsigned long SENSOR_INTERVAL    = 45000; // 45 s
-
-// ─── NVS namespaces ───────────────────────────────────────────────────────────
-
 // ─── Globals (defined in main.cpp) ───────────────────────────────────────────
 extern String     robotId;
 extern String     serverUrl;
 extern String     projectId;
-extern String     mqttHost;
-extern uint16_t   mqttPort;
+extern String     socketHost;
+extern uint16_t   socketPort;
 extern RobotState currentState;
 
-// ─── Registration (HTTP) ─────────────────────────────────────────────────────
+// ─── Registration (socket) ────────────────────────────────────────────────────
 void registerRobot();
 
 // ─── Boot log (device.cpp) ────────────────────────────────────────────────────
@@ -42,7 +38,7 @@ void tlog(const String& msg);
 void setupDeviceHardware();
 void touchBegin();
 void updateTouch();
-void applyRobotConfig();
+void applySocketConfig(const JsonDocument& doc);
 void handleDisplay(const String& json);
 void handleEmotion(const String& json);
 void handleSpeech(const String& json);

@@ -1,5 +1,24 @@
 # Changelog — tara-robo
 
+## [3.0.0] — 2026-06-28
+
+### Changed
+
+- **Breaking:** replaced MQTT (ota4h + config4h + health_check) with direct
+  TCP socket via new `lib/socket4h/` library
+- Captive portal: removed `servicePort` and `mqttPort` fields; added `port`
+  (TCP socket port, default 3001); kept `ssid`, `password`, `projectId`, `host`
+- `lib/socket4h/`: new TCP client — connect, send/receive JSON lines, reconnect
+- `lib/TaraCore/src/TaraCore.cpp`: registration now sends `register` message
+  via socket instead of HTTP POST
+- `src/main.cpp`: socket connect + handlers for `config`, `display`, `emotion`,
+  `speech`, `ota`; heartbeat every 30s, health every 60s
+- `src/device.cpp`: `applyRobotConfig()` → `applySocketConfig(const JsonDocument&)`
+- `platformio.ini`: removed `ota4h`, `config4h`, `health-check`, `PubSubClient`,
+  `face`, `display4h`, `tara-face`
+
+---
+
 ## [2.2.1] — 2026-06-26
 
 ### Fixed

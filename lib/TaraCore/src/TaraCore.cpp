@@ -1,27 +1,22 @@
 #include "TaraCore.h"
-#include <ArduinoJson.h>
-#include <HTTPClient.h>
-#include <wifi4h.h>
 #include <reg4h.h>
+#include <socket4h.h>
 
-// ─── Registration ────────────────────────────────────────────────────────────
+// ─── Registration via TCP socket ─────────────────────────────────────────────
 
 void registerRobot() {
     setState(STATE_REGISTERING);
     if (WiFi.status() != WL_CONNECTED) {
-        LWARN( "Register: no WiFi — skipping");
+        LWARN("Register: no WiFi — skipping");
         return;
     }
-    if (serverUrl.length() == 0) {
-        LWARN( "Register: no serverUrl — skipping");
-        tlog("No server URL!");
+    if (!socket4h_connected()) {
+        LWARN("Register: socket not connected — skipping");
+        tlog("Register: no socket");
         return;
     }
 
     tlog("Registering...");
-    HTTPClient http;
-    http.begin(serverUrl + "/device/register");
-    http.addHeader("Content-Type", "application/json");
 
     JsonDocument doc;
     doc["deviceId"]        = robotId;
@@ -49,32 +44,7 @@ void registerRobot() {
         }
     }
 
-    String body;
-    serializeJson(doc, body);
-    LINFO( "Register: POST %s/device/register", serverUrl.c_str());
-    http.setTimeout(10000);
-    int code = http.POST(body);
-
-    if (code == 200 || code == 201) {
-        String resp = http.getString();
-        JsonDocument rdoc;
-        if (deserializeJson(rdoc, resp) == DeserializationError::Ok) {
-            String srvProjectId = rdoc["projectId"] | String("");
-            if (srvProjectId.length() > 0 && srvProjectId != projectId) {
-                projectId = srvProjectId;
-                Preferences prefs;
-                prefs.begin("tara-wifi", false);
-                prefs.putString("projectId", projectId);
-                prefs.end();
-                LINFO( "Register: projectId updated: %s", projectId.c_str());
-            }
-        }
-        tlog("Registered: OK");
-    } else {
-        String errBody = http.getString();
-        LERROR( "Register failed: code=%d body=%s", code, errBody.c_str());
-        tlog("Register: fail " + String(code));
-    }
-    http.end();
+    socket4h_send("register", doc);
+    LINFO("Register: sent via socket");
+    tlog("Registered: OK");
 }
-
