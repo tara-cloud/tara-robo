@@ -1,5 +1,21 @@
 # Changelog — tara-robo
 
+## [3.0.2] — 2026-06-28
+
+### Fixed
+
+- `src/main.cpp`: register socket handlers **before** `socket4h_connect()` and
+  `registerRobot()` — server pushes config immediately on register; handlers must
+  exist to receive it
+- `src/main.cpp`: added 3s polling loop after `registerRobot()` to process the
+  incoming config response before entering main loop
+- `src/main.cpp`: `renderEye()` throttled to ~30fps (`now - _lastFrame >= 33`)
+  to avoid flooding the CPU and blocking socket reads
+- `platformio.ini`: bumped `socket4h` to `1.0.1` — non-blocking reconnect,
+  CRLF handling
+
+---
+
 ## [3.0.1] — 2026-06-28
 
 ### Fixed

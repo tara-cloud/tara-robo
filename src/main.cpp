@@ -15,16 +15,16 @@ String     socketHost;
 uint16_t   socketPort    = 3001;
 RobotState currentState  = STATE_BOOTING;
 
-// ─── Heartbeat / health timing ───────────────────────────────────────────────
+// ─── Timing ──────────────────────────────────────────────────────────────────
 static unsigned long _lastHeartbeat = 0;
 static unsigned long _lastHealth    = 0;
+static unsigned long _lastFrame     = 0;
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(115200);
-    delay(100); // let serial settle before first output
+    delay(100);
 
-    // Drive backlight HIGH — after Serial so we don't lose boot messages
     pinMode(16, OUTPUT);
     digitalWrite(16, HIGH);
 
@@ -32,17 +32,14 @@ void setup() {
     log4c_set("device", DEVICE_NAME);
     log4c_set("firmwareVersion", FW_VERSION);
 
-    // Init display first so tlog() can draw to screen
     setupDeviceHardware();
-
     tlog(String(DEVICE_NAME) + " v" + FW_VERSION);
 
     // Derive robotId from MAC
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     char macStr[13];
-    snprintf(macStr, sizeof(macStr),
-        "%02X%02X%02X%02X%02X%02X",
+    snprintf(macStr, sizeof(macStr), "%02X%02X%02X%02X%02X%02X",
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     robotId = String(macStr);
     tlog("Robot ID: " + robotId);
@@ -71,17 +68,9 @@ void setup() {
     setState(STATE_CONNECTING);
     wifi4h_connect();
 
-    // ─── TCP socket ──────────────────────────────────────────────────────────
-    tlog("Connecting socket...");
-    for (int i = 0; i < 5 && !socket4h_connected(); i++) {
-        if (socket4h_connect(socketHost, socketPort)) break;
-        delay(2000);
-    }
-
-    // Register device via socket
-    registerRobot();
-
-    // ─── Socket message handlers ─────────────────────────────────────────────
+    // ─── Register socket handlers BEFORE connecting ───────────────────────────
+    // Must be set up before registerRobot() — server pushes config immediately
+    // after receiving the register message.
     socket4h_on_message("config", [](const JsonDocument& doc) {
         String pid = doc["projectId"] | String("");
         if (pid.length() > 0) projectId = pid;
@@ -104,10 +93,7 @@ void setup() {
     socket4h_on_message("ota", [](const JsonDocument& doc) {
         String url     = doc["url"]     | String("");
         String version = doc["version"] | String("?");
-        if (url.length() == 0) {
-            LERROR("OTA: no url in message");
-            return;
-        }
+        if (url.length() == 0) { LERROR("OTA: no url"); return; }
         tlog("OTA: " + version);
         LINFO("OTA: starting from %s", url.c_str());
 
@@ -126,14 +112,29 @@ void setup() {
             LERROR("OTA failed: %s", httpUpdate.getLastErrorString().c_str());
             tlog("OTA: FAILED");
         }
-        // HTTP_UPDATE_OK triggers automatic reboot
     });
 
-    // Wire log4c to forward logs via socket
-    log4c_set("socket.enabled", "true");
+    // ─── TCP socket ──────────────────────────────────────────────────────────
+    tlog("Connecting socket...");
+    for (int i = 0; i < 5 && !socket4h_connected(); i++) {
+        if (socket4h_connect(socketHost, socketPort)) break;
+        delay(2000);
+    }
 
+    // Register — server will immediately push config back on same socket
+    registerRobot();
+
+    // Process any incoming data (config response) right after registration
+    unsigned long wait = millis();
+    while (millis() - wait < 3000) {
+        socket4h_loop();
+        if (currentState == STATE_IDLE) break;
+        delay(10);
+    }
+
+    log4c_set("socket.enabled", "true");
     LINFO("Tara ready. v%s id=%s", FW_VERSION, robotId.c_str());
-    setState(STATE_WAITING_CONFIG);
+    if (currentState < STATE_IDLE) setState(STATE_WAITING_CONFIG);
 }
 
 // ─── Loop ────────────────────────────────────────────────────────────────────
@@ -144,7 +145,6 @@ void loop() {
 
     unsigned long now = millis();
 
-    // Heartbeat every 30s
     if (now - _lastHeartbeat >= 30000) {
         _lastHeartbeat = now;
         JsonDocument doc;
@@ -153,7 +153,6 @@ void loop() {
         socket4h_send("heartbeat", doc);
     }
 
-    // Health every 60s
     if (now - _lastHealth >= 60000) {
         _lastHealth = now;
         JsonDocument doc;
@@ -163,7 +162,9 @@ void loop() {
         socket4h_send("health", doc);
     }
 
-    if (currentState >= STATE_IDLE) {
+    // Render eye at ~30fps max — don't flood CPU
+    if (currentState >= STATE_IDLE && now - _lastFrame >= 33) {
+        _lastFrame = now;
         renderEye();
     }
 }
