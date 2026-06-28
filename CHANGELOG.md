@@ -1,5 +1,15 @@
 # Changelog — tara-robo
 
+## [3.0.3] — 2026-06-29
+
+### Fixed
+
+- `src/main.cpp`: logs now forwarded to server via `log4c_set_mqtt()` callback
+  wired to `socket4h_send("log", ...)` — replaces the no-op
+  `log4c_set("socket.enabled", "true")` which had no effect
+
+---
+
 ## [3.0.2] — 2026-06-28
 
 ### Fixed
