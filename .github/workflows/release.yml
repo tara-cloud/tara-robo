@@ -55,7 +55,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: main
+          clean: true
 
       - name: Inject version
         run: |
