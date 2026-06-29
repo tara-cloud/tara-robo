@@ -9,6 +9,9 @@
 - `src/main.cpp`: `renderEye()` loop skips when `isShowingRaw()` is true
 - `src/device.cpp`: touch handler clears `_showingRaw` so eye resumes on touch
 - `TaraCore.h`: declared `bool isShowingRaw()`
+- `.github/workflows/release.yml`: handle 409 on Pocket upload as success
+- `.github/workflows/release.yml`: publish job checks out `ref: main` permanently
+- `platformio.ini`: `FW_VERSION` default updated to `3.0.7`
 
 ---
 
