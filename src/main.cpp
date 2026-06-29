@@ -101,6 +101,12 @@ void setup() {
         String version = doc["version"] | String("?");
         ota4h_handle(url, version);
     });
+    socket4h_on_message("display-raw", [](const JsonDocument& doc) {
+        const char* data = doc["data"] | "";
+        int w = doc["width"]  | 160;
+        int h = doc["height"] | 120;
+        renderRaw(data, w, h);
+    });
 
     // ─── TCP socket ──────────────────────────────────────────────────────────
     tlog("Connecting socket...");

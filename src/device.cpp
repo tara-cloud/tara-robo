@@ -49,6 +49,20 @@ void renderEye() {
                       (const uint16_t*)Eye_map, EYE_W, EYE_H);
 }
 
+void renderRaw(const char* b64data, int w, int h) {
+    size_t len = strlen(b64data);
+    size_t binLen = 0;
+    bool ok = ArduinoJson::detail::decode64(b64data, len, nullptr, &binLen);
+    if (!ok) { LERROR("renderRaw: base64 size failed"); return; }
+    uint8_t* buf = (uint8_t*)malloc(binLen);
+    if (!buf) { LERROR("renderRaw: malloc failed"); return; }
+    ArduinoJson::detail::decode64(b64data, len, buf, &binLen);
+    int x = (tft.width()  - w) / 2;
+    int y = (tft.height() - h) / 2;
+    tft.drawRGBBitmap(x, y, (const uint16_t*)buf, w, h);
+    free(buf);
+}
+
 // ─── Boot log ─────────────────────────────────────────────────────────────────
 static const int LOG_Y_START = 20;
 static const int LOG_LINE_H  = 11;
