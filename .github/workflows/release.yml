@@ -81,9 +81,19 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"name":"tara-robo","description":"Tara robot firmware","repoType":"generic","isPublic":true}' \
             || true
-          curl -f -X POST \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             "${{ secrets.POCKET_BASE_URL }}/api/repos/tara-robo/artifacts" \
             -H "x-pocket-token: ${{ secrets.POCKET_API_KEY }}" \
             -F "file=@${FIRMWARE}" \
             -F "name=tara-robo" \
-            -F "version=${VERSION}"
+            -F "version=${VERSION}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          if [ "$HTTP_CODE" = "409" ]; then
+            echo "Artifact tara-robo@${VERSION} already exists, skipping."
+            exit 0
+          fi
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "Upload failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Uploaded tara-robo@${VERSION} successfully."
