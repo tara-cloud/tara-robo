@@ -44,4 +44,5 @@ void handleEmotion(const String& json);
 void handleSpeech(const String& json);
 void setState(RobotState s);
 void renderEye();
+void renderRaw(const char* b64data, int w, int h);
 void setBacklight(bool on);
