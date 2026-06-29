@@ -1,5 +1,17 @@
 # Changelog — tara-robo
 
+## [3.0.5] — 2026-06-29
+
+### Added
+
+- `src/device.cpp`: `renderRaw(b64data, w, h)` — decodes base64 RGB565 and
+  renders via `tft.drawRGBBitmap()` centred on screen
+- `src/main.cpp`: `display-raw` socket handler — calls `renderRaw()` with
+  dimensions from server message
+- `TaraCore.h`: declared `void renderRaw(const char*, int, int)`
+
+---
+
 ## [3.0.4] — 2026-06-29
 
 ### Changed
