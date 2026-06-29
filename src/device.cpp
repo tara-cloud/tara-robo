@@ -118,8 +118,7 @@ void rawChunk(int index, const char* b64data) {
         int y = (tft.height() - _rawH) / 2;
         tft.drawRGBBitmap(x, y, (const uint16_t*)_rawBuf, _rawW, _rawH);
         free(_rawBuf); _rawBuf = nullptr;
-        _showingRaw = true; // freeze renderEye() so it doesn't overwrite
-        tlog("HW: image shown");
+        _showingRaw = true;
         LINFO("rawChunk: rendered %dx%d", _rawW, _rawH);
     }
 }

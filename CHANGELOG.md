@@ -1,5 +1,15 @@
 # Changelog — tara-robo
 
+## [3.0.8] — 2026-06-29
+
+### Fixed
+
+- `src/device.cpp`: removed `tlog("HW: image shown")` after raw render —
+  `tlog()` redraws the boot screen which overwrote the displayed image;
+  replaced with `LINFO` only (goes to log stream, not display)
+
+---
+
 ## [3.0.7] — 2026-06-29
 
 ### Fixed
