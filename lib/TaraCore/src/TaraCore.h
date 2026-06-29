@@ -47,4 +47,5 @@ void renderEye();
 void renderRaw(const char* b64data, int w, int h);
 void rawStart(int w, int h, int chunks);
 void rawChunk(int index, const char* b64data);
+bool isShowingRaw();
 void setBacklight(bool on);

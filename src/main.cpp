@@ -172,8 +172,8 @@ void loop() {
         socket4h_send("health", doc);
     }
 
-    // Render eye at ~30fps max
-    if (currentState >= STATE_IDLE && now - _lastFrame >= 33) {
+    // Render eye at ~30fps max — skip if raw image is being shown
+    if (currentState >= STATE_IDLE && !isShowingRaw() && now - _lastFrame >= 33) {
         _lastFrame = now;
         renderEye();
     }

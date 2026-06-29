@@ -1,5 +1,17 @@
 # Changelog — tara-robo
 
+## [3.0.7] — 2026-06-29
+
+### Fixed
+
+- `src/device.cpp`: added `_showingRaw` flag — set after raw image renders,
+  cleared on touch; prevents `renderEye()` overwriting the displayed image
+- `src/main.cpp`: `renderEye()` loop skips when `isShowingRaw()` is true
+- `src/device.cpp`: touch handler clears `_showingRaw` so eye resumes on touch
+- `TaraCore.h`: declared `bool isShowingRaw()`
+
+---
+
 ## [3.0.6] — 2026-06-29
 
 ### Fixed

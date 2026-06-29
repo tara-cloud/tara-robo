@@ -89,6 +89,9 @@ static int      _rawW        = 0;
 static int      _rawH        = 0;
 static int      _rawChunks   = 0;
 static int      _rawReceived = 0;
+static bool     _showingRaw  = false; // true while raw image is on screen
+
+bool isShowingRaw() { return _showingRaw; }
 
 void rawStart(int w, int h, int chunks) {
     if (_rawBuf) { free(_rawBuf); _rawBuf = nullptr; }
@@ -99,6 +102,7 @@ void rawStart(int w, int h, int chunks) {
     _rawH        = h;
     _rawChunks   = chunks;
     _rawReceived = 0;
+    _showingRaw  = false;
     if (!_rawBuf) LERROR("rawStart: malloc failed (%d bytes)", (int)_rawBufSize);
     else          LINFO("rawStart: %dx%d %d chunks", w, h, chunks);
 }
@@ -108,12 +112,14 @@ void rawChunk(int index, const char* b64data) {
     size_t decoded = b64decode(b64data, _rawBuf + _rawOffset);
     _rawOffset += decoded;
     _rawReceived++;
-    LINFO("rawChunk: %d/%d", _rawReceived, _rawChunks);
+    LINFO("rawChunk: %d/%d offset=%d", _rawReceived, _rawChunks, (int)_rawOffset);
     if (_rawReceived >= _rawChunks) {
         int x = (tft.width()  - _rawW) / 2;
         int y = (tft.height() - _rawH) / 2;
         tft.drawRGBBitmap(x, y, (const uint16_t*)_rawBuf, _rawW, _rawH);
         free(_rawBuf); _rawBuf = nullptr;
+        _showingRaw = true; // freeze renderEye() so it doesn't overwrite
+        tlog("HW: image shown");
         LINFO("rawChunk: rendered %dx%d", _rawW, _rawH);
     }
 }
@@ -156,6 +162,7 @@ void touchBegin() {
     touch.begin(20, 3);
     touch.onTouch([]() {
         LINFO("touch: detected");
+        _showingRaw = false; // resume eye on touch
         renderEye();
     });
 }
