@@ -49,14 +49,32 @@ void renderEye() {
                       (const uint16_t*)Eye_map, EYE_W, EYE_H);
 }
 
+static size_t b64decode(const char* src, uint8_t* dst) {
+    static const char tbl[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t out = 0;
+    uint32_t val = 0;
+    int bits = 0;
+    for (; *src; src++) {
+        if (*src == '=') break;
+        const char* p = strchr(tbl, *src);
+        if (!p) continue;
+        val = (val << 6) | (uint32_t)(p - tbl);
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            if (dst) dst[out] = (val >> bits) & 0xff;
+            out++;
+        }
+    }
+    return out;
+}
+
 void renderRaw(const char* b64data, int w, int h) {
-    size_t len = strlen(b64data);
-    size_t binLen = 0;
-    bool ok = ArduinoJson::detail::decode64(b64data, len, nullptr, &binLen);
-    if (!ok) { LERROR("renderRaw: base64 size failed"); return; }
+    size_t binLen = b64decode(b64data, nullptr);
     uint8_t* buf = (uint8_t*)malloc(binLen);
-    if (!buf) { LERROR("renderRaw: malloc failed"); return; }
-    ArduinoJson::detail::decode64(b64data, len, buf, &binLen);
+    if (!buf) { LERROR("renderRaw: malloc failed (%d bytes)", (int)binLen); return; }
+    b64decode(b64data, buf);
     int x = (tft.width()  - w) / 2;
     int y = (tft.height() - h) / 2;
     tft.drawRGBBitmap(x, y, (const uint16_t*)buf, w, h);
