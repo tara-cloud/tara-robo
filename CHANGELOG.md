@@ -1,5 +1,17 @@
 # Changelog — tara-robo
 
+## [3.0.4] — 2026-06-29
+
+### Changed
+
+- `src/main.cpp`: OTA handler refactored — inline `HTTPUpdate` code replaced
+  with `ota4h_handle(url, version)` call; state callback registered via
+  `ota4h_on_state()` with `tlog()` output
+- `platformio.ini`: added `ota4h@2.0.0` from Pocket; removed `<HTTPUpdate.h>`
+  and `<HTTPClient.h>` direct includes
+
+---
+
 ## [3.0.3] — 2026-06-29
 
 ### Fixed

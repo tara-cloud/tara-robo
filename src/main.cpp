@@ -1,11 +1,10 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <HTTPClient.h>
-#include <HTTPUpdate.h>
 #include "TaraCore.h"
 #include <wifi4h.h>
 #include <reg4h.h>
 #include <socket4h.h>
+#include <ota4h.h>
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 String     robotId;
@@ -68,6 +67,13 @@ void setup() {
     setState(STATE_CONNECTING);
     wifi4h_connect();
 
+    // ─── OTA state callback ───────────────────────────────────────────────────
+    ota4h_on_state([](const String& state, int pct) {
+        if (state == "progress") tlog("OTA: " + String(pct) + "%");
+        else                     tlog("OTA: " + state);
+        if (state == "failed")   setState(STATE_ERROR);
+    });
+
     // ─── Register socket handlers BEFORE connecting ───────────────────────────
     // Must be set up before registerRobot() — server pushes config immediately
     // after receiving the register message.
@@ -93,25 +99,7 @@ void setup() {
     socket4h_on_message("ota", [](const JsonDocument& doc) {
         String url     = doc["url"]     | String("");
         String version = doc["version"] | String("?");
-        if (url.length() == 0) { LERROR("OTA: no url"); return; }
-        tlog("OTA: " + version);
-        LINFO("OTA: starting from %s", url.c_str());
-
-        WiFiClient client;
-        httpUpdate.onStart([]()    { tlog("OTA: downloading..."); });
-        httpUpdate.onProgress([](int cur, int total) {
-            static int last = -1;
-            int pct = (total > 0) ? (cur * 100 / total) : 0;
-            if (pct / 10 != last / 10) { last = pct; tlog("OTA: " + String(pct) + "%"); }
-        });
-        httpUpdate.onEnd([]()      { tlog("OTA: done — rebooting"); });
-        httpUpdate.onError([](int e){ tlog("OTA: error " + String(e)); });
-
-        t_httpUpdate_return ret = httpUpdate.update(client, url);
-        if (ret == HTTP_UPDATE_FAILED) {
-            LERROR("OTA failed: %s", httpUpdate.getLastErrorString().c_str());
-            tlog("OTA: FAILED");
-        }
+        ota4h_handle(url, version);
     });
 
     // ─── TCP socket ──────────────────────────────────────────────────────────
@@ -173,7 +161,7 @@ void loop() {
         socket4h_send("health", doc);
     }
 
-    // Render eye at ~30fps max — don't flood CPU
+    // Render eye at ~30fps max
     if (currentState >= STATE_IDLE && now - _lastFrame >= 33) {
         _lastFrame = now;
         renderEye();
