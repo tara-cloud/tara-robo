@@ -1,5 +1,18 @@
 # Changelog — tara-robo
 
+## [3.0.6] — 2026-06-29
+
+### Fixed
+
+- `src/main.cpp`: replaced single `display-raw` handler with chunked
+  `display-raw-start` + `display-raw-chunk` handlers — avoids 51KB JSON
+  that ArduinoJson cannot allocate
+- `src/device.cpp`: added `rawStart()` and `rawChunk()` — allocates buffer
+  once on start, appends decoded chunks, renders on last chunk
+- `TaraCore.h`: declared `rawStart()` and `rawChunk()`
+
+---
+
 ## [3.0.5] — 2026-06-29
 
 ### Added

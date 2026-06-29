@@ -101,11 +101,16 @@ void setup() {
         String version = doc["version"] | String("?");
         ota4h_handle(url, version);
     });
-    socket4h_on_message("display-raw", [](const JsonDocument& doc) {
-        const char* data = doc["data"] | "";
+    socket4h_on_message("display-raw-start", [](const JsonDocument& doc) {
         int w = doc["width"]  | 160;
         int h = doc["height"] | 120;
-        renderRaw(data, w, h);
+        int c = doc["chunks"] | 1;
+        rawStart(w, h, c);
+    });
+    socket4h_on_message("display-raw-chunk", [](const JsonDocument& doc) {
+        int index        = doc["index"] | 0;
+        const char* data = doc["data"]  | "";
+        rawChunk(index, data);
     });
 
     // ─── TCP socket ──────────────────────────────────────────────────────────
