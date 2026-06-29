@@ -70,6 +70,43 @@ static size_t b64decode(const char* src, uint8_t* dst) {
     return out;
 }
 
+// ─── Chunked raw image transfer state ────────────────────────────────────────
+static uint8_t* _rawBuf      = nullptr;
+static size_t   _rawBufSize  = 0;
+static size_t   _rawOffset   = 0;
+static int      _rawW        = 0;
+static int      _rawH        = 0;
+static int      _rawChunks   = 0;
+static int      _rawReceived = 0;
+
+void rawStart(int w, int h, int chunks) {
+    if (_rawBuf) { free(_rawBuf); _rawBuf = nullptr; }
+    _rawBufSize  = (size_t)w * h * 2;
+    _rawBuf      = (uint8_t*)malloc(_rawBufSize);
+    _rawOffset   = 0;
+    _rawW        = w;
+    _rawH        = h;
+    _rawChunks   = chunks;
+    _rawReceived = 0;
+    if (!_rawBuf) LERROR("rawStart: malloc failed (%d bytes)", (int)_rawBufSize);
+    else          LINFO("rawStart: %dx%d %d chunks", w, h, chunks);
+}
+
+void rawChunk(int index, const char* b64data) {
+    if (!_rawBuf) { LERROR("rawChunk: no buffer"); return; }
+    size_t decoded = b64decode(b64data, _rawBuf + _rawOffset);
+    _rawOffset += decoded;
+    _rawReceived++;
+    LINFO("rawChunk: %d/%d offset=%d", _rawReceived, _rawChunks, (int)_rawOffset);
+    if (_rawReceived >= _rawChunks) {
+        int x = (tft.width()  - _rawW) / 2;
+        int y = (tft.height() - _rawH) / 2;
+        tft.drawRGBBitmap(x, y, (const uint16_t*)_rawBuf, _rawW, _rawH);
+        free(_rawBuf); _rawBuf = nullptr;
+        LINFO("rawChunk: rendered %dx%d", _rawW, _rawH);
+    }
+}
+
 void renderRaw(const char* b64data, int w, int h) {
     size_t binLen = b64decode(b64data, nullptr);
     uint8_t* buf = (uint8_t*)malloc(binLen);
